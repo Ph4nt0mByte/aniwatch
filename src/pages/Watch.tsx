@@ -1,8 +1,10 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
+import Hls from 'hls.js';
 import { jikanApi } from '../services/api';
+import { resolveHiAnimeId, getHiAnimeEpisodes, loadEpisodeStream, HiAnimeEpisode } from '../services/hiAnime';
 import { Anime, Episode } from '../types';
-import { Play, List, ChevronLeft, ChevronRight, Settings, Info, Share2, Volume2, Maximize, MessageSquare, Bookmark, SkipBack, SkipForward, Sun, ChevronDown, Search } from 'lucide-react';
+import { Play, List, ChevronLeft, ChevronRight, Settings, Info, Share2, Volume2, Maximize, MessageSquare, Bookmark, SkipBack, SkipForward, Sun, ChevronDown, Search, Loader2, AlertTriangle } from 'lucide-react';
 import { db } from '../lib/firebase';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
@@ -18,8 +20,6 @@ export default function Watch() {
   const [anime, setAnime] = useState<Anime | null>(null);
   const [episodes, setEpisodes] = useState<Episode[]>([]);
   const [loading, setLoading] = useState(true);
-  const [server, setServer] = useState<'Vidstream' | 'VidCloud'>('Vidstream');
-  const [mode, setMode] = useState<'sub' | 'dub'>('sub');
   const [autoPlay, setAutoPlay] = useState(true);
   const [autoNext, setAutoNext] = useState(true);
   const [autoSkip, setAutoSkip] = useState(false);
@@ -27,6 +27,15 @@ export default function Watch() {
   const [recommendations, setRecommendations] = useState<any[]>([]);
   const [relations, setRelations] = useState<any[]>([]);
   const [relationCache, setRelationCache] = useState<Record<number, any>>({});
+
+  // HiAnime streaming state
+  const [hiAnimeId, setHiAnimeId] = useState<string | null>(null);
+  const [hiAnimeEpisodes, setHiAnimeEpisodes] = useState<HiAnimeEpisode[]>([]);
+  const [streamUrl, setStreamUrl] = useState<string | null>(null);
+  const [streamLoading, setStreamLoading] = useState(false);
+  const [streamError, setStreamError] = useState<string | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const hlsRef = useRef<Hls | null>(null);
 
   const epNumber = parseInt(ep || '1');
 
@@ -197,6 +206,82 @@ export default function Watch() {
       console.warn('Failed to add to watchlist:', err);
     }
   };
+  // Resolve HiAnime ID when anime data is available
+  useEffect(() => {
+    if (!anime) return;
+    setHiAnimeId(null);
+    setHiAnimeEpisodes([]);
+    setStreamUrl(null);
+    resolveHiAnimeId(anime.title, anime.title_english ?? undefined).then(id => {
+      if (id) {
+        setHiAnimeId(id);
+      } else {
+        setStreamError('Could not find this anime on the streaming service.');
+      }
+    });
+  }, [anime?.mal_id]);
+
+  // Fetch HiAnime episode list when hiAnimeId is resolved
+  useEffect(() => {
+    if (!hiAnimeId) return;
+    getHiAnimeEpisodes(hiAnimeId).then(eps => setHiAnimeEpisodes(eps));
+  }, [hiAnimeId]);
+
+  // Load stream when episode or hiAnime data changes
+  useEffect(() => {
+    if (!hiAnimeId || hiAnimeEpisodes.length === 0) return;
+    const episode = hiAnimeEpisodes.find(e => e.number === epNumber)
+      ?? hiAnimeEpisodes[epNumber - 1];
+    if (!episode) return;
+
+    setStreamLoading(true);
+    setStreamError(null);
+    setStreamUrl(null);
+
+    loadEpisodeStream(hiAnimeId, episode.episodeId).then(result => {
+      if (result.success && result.source?.link?.file) {
+        setStreamUrl(result.source.link.file);
+      } else {
+        setStreamError('Stream unavailable for this episode.');
+      }
+      setStreamLoading(false);
+    });
+  }, [hiAnimeId, hiAnimeEpisodes, epNumber]);
+
+  // Attach HLS.js to video element when stream URL changes
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !streamUrl) return;
+
+    if (hlsRef.current) {
+      hlsRef.current.destroy();
+      hlsRef.current = null;
+    }
+
+    if (streamUrl.includes('.m3u8') && Hls.isSupported()) {
+      const hls = new Hls({ enableWorker: false });
+      hlsRef.current = hls;
+      hls.loadSource(streamUrl);
+      hls.attachMedia(video);
+      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        video.play().catch(() => {});
+      });
+    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+      video.src = streamUrl;
+      video.play().catch(() => {});
+    } else {
+      video.src = streamUrl;
+      video.play().catch(() => {});
+    }
+
+    return () => {
+      if (hlsRef.current) {
+        hlsRef.current.destroy();
+        hlsRef.current = null;
+      }
+    };
+  }, [streamUrl]);
+
   const playerContainerRef = useRef<HTMLDivElement>(null);
 
   const toggleFullscreen = () => {
@@ -229,9 +314,6 @@ export default function Watch() {
     </div>
   );
 
-  const playerUrl = server === 'Vidstream' 
-    ? `https://vidsrc.xyz/embed/anime/${id}/${epNumber}`
-    : `https://vidsrc.to/embed/anime/${id}/${epNumber}`;
 
   return (
     <div className="max-w-[1600px] mx-auto px-4 lg:px-6 py-6">
@@ -341,18 +423,44 @@ export default function Watch() {
           {/* Player Section */}
           <div className="space-y-0.5">
             <div ref={playerContainerRef} className="relative aspect-video bg-black rounded-t-2xl overflow-hidden shadow-2xl group border-x border-t border-white/5">
-                <iframe
-                  src={playerUrl}
-                  title="Streaming Player"
-                  className="w-full h-full border-0"
-                  allowFullScreen
-                  allow="autoplay; encrypted-media"
-                ></iframe>
-                
+                {/* Loading state */}
+                {streamLoading && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black z-10">
+                    <Loader2 className="w-10 h-10 text-primary animate-spin" />
+                    <p className="text-xs font-bold text-gray-400">Loading stream...</p>
+                  </div>
+                )}
+
+                {/* Error / not found state */}
+                {!streamLoading && streamError && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black z-10 px-6 text-center">
+                    <AlertTriangle className="w-10 h-10 text-yellow-500" />
+                    <p className="text-sm font-bold text-gray-300">{streamError}</p>
+                    <p className="text-[11px] text-gray-500">The streaming service may not have this title yet.</p>
+                  </div>
+                )}
+
+                {/* Initial state — waiting for HiAnime ID */}
+                {!streamLoading && !streamError && !streamUrl && (
+                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black z-10">
+                    <Loader2 className="w-10 h-10 text-primary animate-spin" />
+                    <p className="text-xs font-bold text-gray-400">Resolving stream source...</p>
+                  </div>
+                )}
+
+                <video
+                  ref={videoRef}
+                  className="w-full h-full"
+                  controls
+                  playsInline
+                />
+
                 <div className="absolute top-4 left-4 pointer-events-none flex items-center gap-2">
                   <div className="bg-black/80 backdrop-blur-md px-3 py-1.5 rounded-lg border border-white/10 text-[10px] font-black flex items-center gap-2">
-                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                    SERVER {server.toUpperCase()} ({mode.toUpperCase()})
+                    {streamUrl
+                      ? <><div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div> LIVE (SUB)</>
+                      : <><div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></div> LOADING...</>
+                    }
                   </div>
                 </div>
             </div>
@@ -424,53 +532,41 @@ export default function Watch() {
             </div>
           </div>
 
-          {/* Server Selection Area */}
+          {/* Stream Info Area */}
           <div className="flex flex-col md:flex-row bg-white/5 rounded-2xl border border-white/5 overflow-hidden mt-4">
             <div className="p-6 md:w-1/3 flex flex-col items-center justify-center text-center border-b md:border-b-0 md:border-r border-white/5 bg-white/[0.02]">
               <p className="text-sm font-medium leading-relaxed font-sans">
                 You're watching <span className="text-primary font-black">Episode {epNumber}</span>.
                 <br />
-                <span className="text-[10px] text-gray-500 mt-2 block font-bold leading-tight">If current servers doesn't work, please try other servers beside.</span>
+                <span className="text-[10px] text-gray-500 mt-2 block font-bold leading-tight">Stream is sourced automatically with fallback servers.</span>
               </p>
             </div>
-            
-            <div className="p-6 flex-1 space-y-6">
-              {/* SUB Servers */}
+
+            <div className="p-6 flex-1 space-y-4">
               <div className="flex items-center gap-6">
                 <div className="flex items-center gap-2 w-16 shrink-0">
                   <MessageSquare className="w-4 h-4 text-gray-500" />
-                  <span className="text-[10px] font-black uppercase text-gray-400">SUB</span>
+                  <span className="text-[10px] font-black uppercase text-gray-400">Source</span>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  {['Vidstream', 'VidCloud'].map((s) => (
-                    <button
+                  {['hd-1', 'hd-2', 'backup'].map((s) => (
+                    <div
                       key={s}
-                      onClick={() => { setServer(s as any); setMode('sub'); }}
-                      className={`px-4 py-2 rounded-lg text-xs font-bold transition-all border flex items-center gap-2 cursor-pointer ${server === s && mode === 'sub' ? 'bg-primary text-black border-primary' : 'bg-white/5 hover:bg-white/10 text-gray-400 border-white/5'}`}
+                      className="px-4 py-2 rounded-lg text-xs font-bold border bg-white/5 text-gray-400 border-white/5 flex items-center gap-2"
                     >
-                      <Play className={`w-3 h-3 ${server === s && mode === 'sub' ? 'fill-current' : ''}`} /> {s}
-                    </button>
+                      <Play className="w-3 h-3" /> {s.toUpperCase()}
+                    </div>
                   ))}
                 </div>
               </div>
 
-              {/* DUB Servers */}
-              <div className="flex items-center gap-6">
-                <div className="flex items-center gap-2 w-16 shrink-0">
-                  <Volume2 className="w-4 h-4 text-gray-500" />
-                  <span className="text-[10px] font-black uppercase text-gray-400">DUB</span>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {['Vidstream', 'VidCloud'].map((s) => (
-                    <button
-                      key={s}
-                      onClick={() => { setServer(s as any); setMode('dub'); }}
-                      className={`px-4 py-2 rounded-lg text-xs font-bold transition-all border flex items-center gap-2 cursor-pointer ${server === s && mode === 'dub' ? 'bg-primary text-black border-primary' : 'bg-white/5 hover:bg-white/10 text-gray-400 border-white/5'}`}
-                    >
-                      <Play className={`w-3 h-3 ${server === s && mode === 'dub' ? 'fill-current' : ''}`} /> {s}
-                    </button>
-                  ))}
-                </div>
+              <div className="flex items-center gap-3 text-[11px] font-bold">
+                <span className={`px-3 py-1 rounded-full border text-[10px] font-black uppercase ${streamUrl ? 'bg-green-500/10 border-green-500/30 text-green-400' : streamError ? 'bg-red-500/10 border-red-500/30 text-red-400' : 'bg-yellow-500/10 border-yellow-500/30 text-yellow-400'}`}>
+                  {streamUrl ? 'Stream Active' : streamError ? 'Stream Unavailable' : 'Resolving...'}
+                </span>
+                {hiAnimeId && (
+                  <span className="text-gray-600 text-[10px]">ID: {hiAnimeId}</span>
+                )}
               </div>
             </div>
           </div>
