@@ -337,7 +337,7 @@ export default function Watch() {
         </div>
 
         {/* Main Content (Right) */}
-        <div className="flex-1 order-1 lg:order-2 space-y-4">
+        <div className="flex-1 min-w-0 order-1 lg:order-2 space-y-4">
           {/* Player Section */}
           <div className="space-y-0.5">
             <div ref={playerContainerRef} className="relative aspect-video bg-black rounded-t-2xl overflow-hidden shadow-2xl group border-x border-t border-white/5">
