@@ -1,0 +1,58 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile information",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" }
+      },
+      "required": ["userId", "email"]
+    },
+    "WatchHistory": {
+      "title": "Watch History",
+      "description": "Tracks progress of watched anime episodes",
+      "type": "object",
+      "properties": {
+        "animeId": { "type": "string" },
+        "title": { "type": "string" },
+        "poster": { "type": "string" },
+        "episodeId": { "type": "string" },
+        "episodeNumber": { "type": "number" },
+        "progress": { "type": "number" },
+        "duration": { "type": "number" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["animeId", "title", "episodeNumber", "progress", "updatedAt"]
+    },
+    "WatchList": {
+      "title": "Watch List",
+      "description": "Anime saved to watch later",
+      "type": "object",
+      "properties": {
+        "animeId": { "type": "string" },
+        "title": { "type": "string" },
+        "poster": { "type": "string" },
+        "addedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["animeId", "title", "addedAt"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": "User",
+      "description": "User profile documents"
+    },
+    "users/{userId}/watchHistory/{animeId}": {
+      "schema": "WatchHistory",
+      "description": "Per-user watch status for specific anime"
+    },
+    "users/{userId}/watchList/{animeId}": {
+      "schema": "WatchList",
+      "description": "Per-user watchlist items"
+    }
+  }
+}
