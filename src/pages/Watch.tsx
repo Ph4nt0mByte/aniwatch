@@ -1,10 +1,9 @@
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import Hls from 'hls.js';
 import { jikanApi } from '../services/api';
-import { resolveHiAnimeId, getHiAnimeEpisodes, loadEpisodeStream, HiAnimeEpisode } from '../services/hiAnime';
+import { getEpisodeEmbedUrl } from '../services/anikoto';
 import { Anime, Episode } from '../types';
-import { Play, List, ChevronLeft, ChevronRight, Settings, Info, Share2, Volume2, Maximize, MessageSquare, Bookmark, SkipBack, SkipForward, Sun, ChevronDown, Search, Loader2, AlertTriangle } from 'lucide-react';
+import { Play, List, Settings, Info, Volume2, Maximize, MessageSquare, Bookmark, SkipBack, SkipForward, Sun, ChevronDown, ChevronRight, Search, Loader2, AlertTriangle } from 'lucide-react';
 import { db } from '../lib/firebase';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
@@ -28,14 +27,12 @@ export default function Watch() {
   const [relations, setRelations] = useState<any[]>([]);
   const [relationCache, setRelationCache] = useState<Record<number, any>>({});
 
-  // HiAnime streaming state
-  const [hiAnimeId, setHiAnimeId] = useState<string | null>(null);
-  const [hiAnimeEpisodes, setHiAnimeEpisodes] = useState<HiAnimeEpisode[]>([]);
-  const [streamUrl, setStreamUrl] = useState<string | null>(null);
+  // Anikoto streaming state
+  const [embedUrl, setEmbedUrl] = useState<string | null>(null);
+  const [streamMode, setStreamMode] = useState<'sub' | 'dub'>('sub');
   const [streamLoading, setStreamLoading] = useState(false);
   const [streamError, setStreamError] = useState<string | null>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const hlsRef = useRef<Hls | null>(null);
+  const [embedUrls, setEmbedUrls] = useState<{ sub?: string; dub?: string }>({});
 
   const epNumber = parseInt(ep || '1');
 
@@ -207,80 +204,44 @@ export default function Watch() {
     }
   };
   // Resolve HiAnime ID when anime data is available
+  // Fetch Anikoto embed URLs when anime or episode changes
   useEffect(() => {
     if (!anime) return;
-    setHiAnimeId(null);
-    setHiAnimeEpisodes([]);
-    setStreamUrl(null);
-    resolveHiAnimeId(anime.title, anime.title_english ?? undefined).then(id => {
-      if (id) {
-        setHiAnimeId(id);
-      } else {
-        setStreamError('Could not find this anime on the streaming service.');
-      }
-    });
-  }, [anime?.mal_id]);
-
-  // Fetch HiAnime episode list when hiAnimeId is resolved
-  useEffect(() => {
-    if (!hiAnimeId) return;
-    getHiAnimeEpisodes(hiAnimeId).then(eps => setHiAnimeEpisodes(eps));
-  }, [hiAnimeId]);
-
-  // Load stream when episode or hiAnime data changes
-  useEffect(() => {
-    if (!hiAnimeId || hiAnimeEpisodes.length === 0) return;
-    const episode = hiAnimeEpisodes.find(e => e.number === epNumber)
-      ?? hiAnimeEpisodes[epNumber - 1];
-    if (!episode) return;
+    let cancelled = false;
 
     setStreamLoading(true);
     setStreamError(null);
-    setStreamUrl(null);
+    setEmbedUrls({});
+    setEmbedUrl(null);
 
-    loadEpisodeStream(hiAnimeId, episode.episodeId).then(result => {
-      if (result.success && result.source?.link?.file) {
-        setStreamUrl(result.source.link.file);
+    getEpisodeEmbedUrl(anime.mal_id, epNumber).then(result => {
+      if (cancelled) return;
+      if (result && (result.sub || result.dub)) {
+        setEmbedUrls(result);
+        setEmbedUrl(result.sub ?? result.dub ?? null);
+        setStreamMode(result.sub ? 'sub' : 'dub');
       } else {
-        setStreamError('Stream unavailable for this episode.');
+        setStreamError('Stream unavailable for this episode. It may not be available on Anikoto yet.');
       }
       setStreamLoading(false);
-    });
-  }, [hiAnimeId, hiAnimeEpisodes, epNumber]);
-
-  // Attach HLS.js to video element when stream URL changes
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video || !streamUrl) return;
-
-    if (hlsRef.current) {
-      hlsRef.current.destroy();
-      hlsRef.current = null;
-    }
-
-    if (streamUrl.includes('.m3u8') && Hls.isSupported()) {
-      const hls = new Hls({ enableWorker: false });
-      hlsRef.current = hls;
-      hls.loadSource(streamUrl);
-      hls.attachMedia(video);
-      hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        video.play().catch(() => {});
-      });
-    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-      video.src = streamUrl;
-      video.play().catch(() => {});
-    } else {
-      video.src = streamUrl;
-      video.play().catch(() => {});
-    }
-
-    return () => {
-      if (hlsRef.current) {
-        hlsRef.current.destroy();
-        hlsRef.current = null;
+    }).catch(() => {
+      if (!cancelled) {
+        setStreamError('Failed to load stream. Please try again.');
+        setStreamLoading(false);
       }
-    };
-  }, [streamUrl]);
+    });
+
+    return () => { cancelled = true; };
+  }, [anime?.mal_id, epNumber]);
+
+  // Update embed URL when mode changes
+  useEffect(() => {
+    if (streamMode === 'sub' && embedUrls.sub) {
+      setEmbedUrl(embedUrls.sub);
+    } else if (streamMode === 'dub' && embedUrls.dub) {
+      setEmbedUrl(embedUrls.dub);
+    }
+  }, [streamMode, embedUrls]);
 
   const playerContainerRef = useRef<HTMLDivElement>(null);
 
@@ -436,29 +397,27 @@ export default function Watch() {
                   <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black z-10 px-6 text-center">
                     <AlertTriangle className="w-10 h-10 text-yellow-500" />
                     <p className="text-sm font-bold text-gray-300">{streamError}</p>
-                    <p className="text-[11px] text-gray-500">The streaming service may not have this title yet.</p>
+                    <p className="text-[11px] text-gray-500">This title may not be available on Anikoto yet.</p>
                   </div>
                 )}
 
-                {/* Initial state — waiting for HiAnime ID */}
-                {!streamLoading && !streamError && !streamUrl && (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black z-10">
-                    <Loader2 className="w-10 h-10 text-primary animate-spin" />
-                    <p className="text-xs font-bold text-gray-400">Resolving stream source...</p>
-                  </div>
+                {/* Iframe player */}
+                {!streamLoading && !streamError && embedUrl && (
+                  <iframe
+                    key={embedUrl}
+                    src={embedUrl}
+                    className="w-full h-full"
+                    allowFullScreen
+                    frameBorder="0"
+                    allow="autoplay; encrypted-media; picture-in-picture"
+                    referrerPolicy="no-referrer"
+                  />
                 )}
-
-                <video
-                  ref={videoRef}
-                  className="w-full h-full"
-                  controls
-                  playsInline
-                />
 
                 <div className="absolute top-4 left-4 pointer-events-none flex items-center gap-2">
                   <div className="bg-black/80 backdrop-blur-md px-3 py-1.5 rounded-lg border border-white/10 text-[10px] font-black flex items-center gap-2">
-                    {streamUrl
-                      ? <><div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div> LIVE (SUB)</>
+                    {embedUrl
+                      ? <><div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div> LIVE ({streamMode.toUpperCase()})</>
                       : <><div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></div> LOADING...</>
                     }
                   </div>
@@ -538,35 +497,50 @@ export default function Watch() {
               <p className="text-sm font-medium leading-relaxed font-sans">
                 You're watching <span className="text-primary font-black">Episode {epNumber}</span>.
                 <br />
-                <span className="text-[10px] text-gray-500 mt-2 block font-bold leading-tight">Stream is sourced automatically with fallback servers.</span>
+                <span className="text-[10px] text-gray-500 mt-2 block font-bold leading-tight">Powered by Anikoto streaming.</span>
               </p>
             </div>
 
             <div className="p-6 flex-1 space-y-4">
               <div className="flex items-center gap-6">
                 <div className="flex items-center gap-2 w-16 shrink-0">
-                  <MessageSquare className="w-4 h-4 text-gray-500" />
-                  <span className="text-[10px] font-black uppercase text-gray-400">Source</span>
+                  <Volume2 className="w-4 h-4 text-gray-500" />
+                  <span className="text-[10px] font-black uppercase text-gray-400">Audio</span>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  {['hd-1', 'hd-2', 'backup'].map((s) => (
-                    <div
-                      key={s}
-                      className="px-4 py-2 rounded-lg text-xs font-bold border bg-white/5 text-gray-400 border-white/5 flex items-center gap-2"
-                    >
-                      <Play className="w-3 h-3" /> {s.toUpperCase()}
-                    </div>
-                  ))}
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setStreamMode('sub')}
+                    disabled={!embedUrls.sub}
+                    className={`px-4 py-2 rounded-lg text-xs font-bold border transition-all ${
+                      streamMode === 'sub' && embedUrls.sub
+                        ? 'bg-primary/20 border-primary/50 text-primary'
+                        : embedUrls.sub
+                        ? 'bg-white/5 border-white/10 text-gray-300 hover:bg-white/10'
+                        : 'bg-white/5 border-white/5 text-gray-600 opacity-40 cursor-not-allowed'
+                    }`}
+                  >
+                    SUB
+                  </button>
+                  <button
+                    onClick={() => setStreamMode('dub')}
+                    disabled={!embedUrls.dub}
+                    className={`px-4 py-2 rounded-lg text-xs font-bold border transition-all ${
+                      streamMode === 'dub' && embedUrls.dub
+                        ? 'bg-primary/20 border-primary/50 text-primary'
+                        : embedUrls.dub
+                        ? 'bg-white/5 border-white/10 text-gray-300 hover:bg-white/10'
+                        : 'bg-white/5 border-white/5 text-gray-600 opacity-40 cursor-not-allowed'
+                    }`}
+                  >
+                    DUB
+                  </button>
                 </div>
               </div>
 
               <div className="flex items-center gap-3 text-[11px] font-bold">
-                <span className={`px-3 py-1 rounded-full border text-[10px] font-black uppercase ${streamUrl ? 'bg-green-500/10 border-green-500/30 text-green-400' : streamError ? 'bg-red-500/10 border-red-500/30 text-red-400' : 'bg-yellow-500/10 border-yellow-500/30 text-yellow-400'}`}>
-                  {streamUrl ? 'Stream Active' : streamError ? 'Stream Unavailable' : 'Resolving...'}
+                <span className={`px-3 py-1 rounded-full border text-[10px] font-black uppercase ${embedUrl ? 'bg-green-500/10 border-green-500/30 text-green-400' : streamError ? 'bg-red-500/10 border-red-500/30 text-red-400' : 'bg-yellow-500/10 border-yellow-500/30 text-yellow-400'}`}>
+                  {embedUrl ? 'Stream Active' : streamError ? 'Stream Unavailable' : 'Loading...'}
                 </span>
-                {hiAnimeId && (
-                  <span className="text-gray-600 text-[10px]">ID: {hiAnimeId}</span>
-                )}
               </div>
             </div>
           </div>
