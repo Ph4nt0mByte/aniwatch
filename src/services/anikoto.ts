@@ -1,5 +1,5 @@
 const API_BASE = "/api/anikoto";
-const CACHE_KEY = "anikoto_mal_map_v1";
+const CACHE_KEY = "anikoto_mal_map_v2";
 const CACHE_TTL = 24 * 60 * 60 * 1000;
 
 interface CacheData {
@@ -41,7 +41,7 @@ async function buildMalIdMap(): Promise<Record<string, number>> {
   return map;
 }
 
-export async function getAnikotoId(malId: string | number): Promise<number | null> {
+async function getAnikotoId(malId: string | number): Promise<number | null> {
   const map = memCache ?? (await buildMalIdMap());
   return map[String(malId)] ?? null;
 }
@@ -50,6 +50,7 @@ export interface AnikotoEpisode {
   id: number;
   number: number;
   title: string;
+  episode_embed_id: string;
   embed_url: { sub?: string; dub?: string };
 }
 
@@ -61,24 +62,31 @@ export async function getAnikotoEpisodes(anikotoId: number): Promise<AnikotoEpis
       id: ep.id,
       number: ep.number,
       title: ep.title ?? `Episode ${ep.number}`,
+      episode_embed_id: String(ep.episode_embed_id ?? ""),
       embed_url: ep.embed_url ?? {},
     }));
   }
   return [];
 }
 
-export async function getEpisodeEmbedUrl(
+export async function getEmbedUrls(
   malId: string | number,
   episodeNumber: number
-): Promise<{ sub?: string; dub?: string; anikotoId?: number } | null> {
-  const anikotoId = await getAnikotoId(malId);
-  if (!anikotoId) return null;
+): Promise<{ sub?: string; dub?: string } | null> {
+  try {
+    const anikotoId = await getAnikotoId(malId);
+    if (!anikotoId) return null;
 
-  const episodes = await getAnikotoEpisodes(anikotoId);
-  const episode =
-    episodes.find((e) => e.number === episodeNumber) ??
-    episodes[episodeNumber - 1];
+    const episodes = await getAnikotoEpisodes(anikotoId);
+    const episode =
+      episodes.find((e) => e.number === episodeNumber) ??
+      episodes[episodeNumber - 1];
 
-  if (!episode) return null;
-  return { ...episode.embed_url, anikotoId };
+    if (!episode?.embed_url) return null;
+    const { sub, dub } = episode.embed_url;
+    if (!sub && !dub) return null;
+    return { sub, dub };
+  } catch {
+    return null;
+  }
 }

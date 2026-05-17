@@ -1,9 +1,9 @@
 import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { jikanApi } from '../services/api';
-import { getEpisodeEmbedUrl } from '../services/anikoto';
+import { getEmbedUrls } from '../services/anikoto';
 import { Anime, Episode } from '../types';
-import { Play, List, Settings, Info, Volume2, Maximize, MessageSquare, Bookmark, SkipBack, SkipForward, Sun, ChevronDown, ChevronRight, Search, Loader2, AlertTriangle } from 'lucide-react';
+import { Play, List, Settings, Info, Volume2, Maximize, MessageSquare, Bookmark, SkipBack, SkipForward, Sun, ChevronDown, ChevronRight, Search, Loader2 } from 'lucide-react';
 import { db } from '../lib/firebase';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
@@ -27,12 +27,11 @@ export default function Watch() {
   const [relations, setRelations] = useState<any[]>([]);
   const [relationCache, setRelationCache] = useState<Record<number, any>>({});
 
-  // Anikoto streaming state
-  const [embedUrl, setEmbedUrl] = useState<string | null>(null);
+  // Streaming state
   const [streamMode, setStreamMode] = useState<'sub' | 'dub'>('sub');
+  const [embedUrls, setEmbedUrls] = useState<{ sub?: string; dub?: string } | null>(null);
   const [streamLoading, setStreamLoading] = useState(false);
   const [streamError, setStreamError] = useState<string | null>(null);
-  const [embedUrls, setEmbedUrls] = useState<{ sub?: string; dub?: string }>({});
 
   const epNumber = parseInt(ep || '1');
 
@@ -204,44 +203,33 @@ export default function Watch() {
     }
   };
   // Resolve HiAnime ID when anime data is available
-  // Fetch Anikoto embed URLs when anime or episode changes
+  // Fetch embed URLs from Anikoto (proxied) when anime or episode changes
   useEffect(() => {
     if (!anime) return;
     let cancelled = false;
 
     setStreamLoading(true);
     setStreamError(null);
-    setEmbedUrls({});
-    setEmbedUrl(null);
+    setEmbedUrls(null);
 
-    getEpisodeEmbedUrl(anime.mal_id, epNumber).then(result => {
+    getEmbedUrls(anime.mal_id, epNumber).then(result => {
       if (cancelled) return;
       if (result && (result.sub || result.dub)) {
         setEmbedUrls(result);
-        setEmbedUrl(result.sub ?? result.dub ?? null);
         setStreamMode(result.sub ? 'sub' : 'dub');
       } else {
-        setStreamError('Stream unavailable for this episode. It may not be available on Anikoto yet.');
+        setStreamError('This episode is not available on the streaming service yet.');
       }
       setStreamLoading(false);
     }).catch(() => {
       if (!cancelled) {
-        setStreamError('Failed to load stream. Please try again.');
+        setStreamError('Failed to load stream. Please try again later.');
         setStreamLoading(false);
       }
     });
 
     return () => { cancelled = true; };
   }, [anime?.mal_id, epNumber]);
-
-  // Update embed URL when mode changes
-  useEffect(() => {
-    if (streamMode === 'sub' && embedUrls.sub) {
-      setEmbedUrl(embedUrls.sub);
-    } else if (streamMode === 'dub' && embedUrls.dub) {
-      setEmbedUrl(embedUrls.dub);
-    }
-  }, [streamMode, embedUrls]);
 
   const playerContainerRef = useRef<HTMLDivElement>(null);
 
@@ -388,35 +376,36 @@ export default function Watch() {
                 {streamLoading && (
                   <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black z-10">
                     <Loader2 className="w-10 h-10 text-primary animate-spin" />
-                    <p className="text-xs font-bold text-gray-400">Loading stream...</p>
+                    <p className="text-xs font-bold text-gray-400">Finding stream source...</p>
                   </div>
                 )}
 
-                {/* Error / not found state */}
+                {/* Error state */}
                 {!streamLoading && streamError && (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black z-10 px-6 text-center">
-                    <AlertTriangle className="w-10 h-10 text-yellow-500" />
+                  <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-black z-10 px-8 text-center">
+                    <div className="text-4xl">📺</div>
                     <p className="text-sm font-bold text-gray-300">{streamError}</p>
-                    <p className="text-[11px] text-gray-500">This title may not be available on Anikoto yet.</p>
+                    <p className="text-[11px] text-gray-500 max-w-xs">Try another episode or check back later — Anikoto may not have indexed this title yet.</p>
                   </div>
                 )}
 
-                {/* Iframe player */}
-                {!streamLoading && !streamError && embedUrl && (
+                {/* Iframe player — uses Anikoto's embed_url (megaplay.buzz/stream/s-2/...) */}
+                {!streamLoading && !streamError && embedUrls && embedUrls[streamMode] && (
                   <iframe
-                    key={embedUrl}
-                    src={embedUrl}
+                    key={embedUrls[streamMode]}
+                    src={embedUrls[streamMode]}
                     className="w-full h-full"
                     allowFullScreen
                     frameBorder="0"
-                    allow="autoplay; encrypted-media; picture-in-picture"
-                    referrerPolicy="no-referrer"
+                    allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+                    scrolling="no"
+                    referrerPolicy="origin"
                   />
                 )}
 
                 <div className="absolute top-4 left-4 pointer-events-none flex items-center gap-2">
                   <div className="bg-black/80 backdrop-blur-md px-3 py-1.5 rounded-lg border border-white/10 text-[10px] font-black flex items-center gap-2">
-                    {embedUrl
+                    {embedUrls
                       ? <><div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div> LIVE ({streamMode.toUpperCase()})</>
                       : <><div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></div> LOADING...</>
                     }
@@ -510,26 +499,20 @@ export default function Watch() {
                 <div className="flex gap-2">
                   <button
                     onClick={() => setStreamMode('sub')}
-                    disabled={!embedUrls.sub}
                     className={`px-4 py-2 rounded-lg text-xs font-bold border transition-all ${
-                      streamMode === 'sub' && embedUrls.sub
+                      streamMode === 'sub'
                         ? 'bg-primary/20 border-primary/50 text-primary'
-                        : embedUrls.sub
-                        ? 'bg-white/5 border-white/10 text-gray-300 hover:bg-white/10'
-                        : 'bg-white/5 border-white/5 text-gray-600 opacity-40 cursor-not-allowed'
+                        : 'bg-white/5 border-white/10 text-gray-300 hover:bg-white/10'
                     }`}
                   >
                     SUB
                   </button>
                   <button
                     onClick={() => setStreamMode('dub')}
-                    disabled={!embedUrls.dub}
                     className={`px-4 py-2 rounded-lg text-xs font-bold border transition-all ${
-                      streamMode === 'dub' && embedUrls.dub
+                      streamMode === 'dub'
                         ? 'bg-primary/20 border-primary/50 text-primary'
-                        : embedUrls.dub
-                        ? 'bg-white/5 border-white/10 text-gray-300 hover:bg-white/10'
-                        : 'bg-white/5 border-white/5 text-gray-600 opacity-40 cursor-not-allowed'
+                        : 'bg-white/5 border-white/10 text-gray-300 hover:bg-white/10'
                     }`}
                   >
                     DUB
@@ -538,8 +521,8 @@ export default function Watch() {
               </div>
 
               <div className="flex items-center gap-3 text-[11px] font-bold">
-                <span className={`px-3 py-1 rounded-full border text-[10px] font-black uppercase ${embedUrl ? 'bg-green-500/10 border-green-500/30 text-green-400' : streamError ? 'bg-red-500/10 border-red-500/30 text-red-400' : 'bg-yellow-500/10 border-yellow-500/30 text-yellow-400'}`}>
-                  {embedUrl ? 'Stream Active' : streamError ? 'Stream Unavailable' : 'Loading...'}
+                <span className={`px-3 py-1 rounded-full border text-[10px] font-black uppercase ${embedUrls ? 'bg-green-500/10 border-green-500/30 text-green-400' : 'bg-yellow-500/10 border-yellow-500/30 text-yellow-400'}`}>
+                  {embedUrls ? 'Stream Active' : 'Loading...'}
                 </span>
               </div>
             </div>
