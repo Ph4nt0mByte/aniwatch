@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { jikanApi } from '../services/api';
 import { getEmbedUrls } from '../services/anikoto';
 import { Anime, Episode } from '../types';
-import { Play, List, Settings, Info, Volume2, Maximize, MessageSquare, Bookmark, SkipBack, SkipForward, Sun, ChevronDown, ChevronRight, Search, Loader2 } from 'lucide-react';
+import { Play, List, Settings, Info, Volume2, Maximize, Bookmark, SkipBack, SkipForward, Sun, ChevronDown, ChevronRight, Search, Loader2 } from 'lucide-react';'lucide-react';
 import { db } from '../lib/firebase';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
@@ -355,16 +355,7 @@ export default function Watch() {
              </div>
            )}
 
-           {/* Discord Card */}
-           <div className="bg-[#5865F2] rounded-3xl p-6 text-center shadow-xl shadow-[#5865F2]/10 overflow-hidden relative group">
-              <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent pointer-events-none"></div>
-              <MessageSquare className="w-12 h-12 text-white mx-auto mb-4 group-hover:scale-110 transition-transform" />
-              <h4 className="font-black text-white mb-2 uppercase tracking-wide">Community Discord</h4>
-              <p className="text-[11px] text-white/80 mb-6 font-bold leading-relaxed px-4">Join our community to discuss about this anime and request for features!</p>
-              <button className="bg-white text-[#5865F2] w-full py-3.5 rounded-2xl text-xs font-black hover:bg-gray-100 transition-all shadow-lg active:scale-95 cursor-pointer">
-                 Join Discord
-              </button>
-           </div>
+
         </div>
 
         {/* Main Content (Right) */}
