@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { jikanApi } from '../services/api';
 import { getEmbedUrls } from '../services/anikoto';
 import { Anime, Episode } from '../types';
-import { Play, List, Settings, Info, Volume2, Maximize, Bookmark, SkipBack, SkipForward, Sun, ChevronDown, ChevronRight, Search, Loader2 } from 'lucide-react';'lucide-react';
+import { Play, List, Settings, Info, Volume2, Maximize, Bookmark, SkipBack, SkipForward, Sun, ChevronDown, ChevronRight, Search, Loader2 } from 'lucide-react';
 import { db } from '../lib/firebase';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
@@ -32,6 +32,12 @@ export default function Watch() {
   const [embedUrls, setEmbedUrls] = useState<{ sub?: string; dub?: string } | null>(null);
   const [streamLoading, setStreamLoading] = useState(false);
   const [streamError, setStreamError] = useState<string | null>(null);
+  const [lightMode, setLightMode] = useState(false);
+
+  useEffect(() => {
+    document.body.style.overflow = lightMode ? 'hidden' : '';
+    return () => { document.body.style.overflow = ''; };
+  }, [lightMode]);
 
   const epNumber = parseInt(ep || '1');
 
@@ -202,7 +208,31 @@ export default function Watch() {
       console.warn('Failed to add to watchlist:', err);
     }
   };
-  // Resolve HiAnime ID when anime data is available
+
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.origin !== 'https://megaplay.buzz') return;
+
+      let data: any;
+      try {
+        data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+      } catch {
+        return;
+      }
+
+      if (data?.channel !== 'megacloud') return;
+
+      if (data.event === 'complete' && autoNext) {
+        const maxEp = anime?.episodes || 999;
+        if (epNumber < maxEp) {
+          navigate(`/watch/${id}/${epNumber + 1}`);
+        }
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [autoNext, epNumber, id, anime, navigate]);
   // Fetch embed URLs from Anikoto (proxied) when anime or episode changes
   useEffect(() => {
     if (!anime) return;
@@ -265,6 +295,14 @@ export default function Watch() {
 
 
   return (
+    <>
+    {/* Light Mode Backdrop */}
+    {lightMode && (
+      <div
+        className="fixed inset-0 bg-black/90 z-[60]"
+        onClick={() => setLightMode(false)}
+      />
+    )}
     <div className="max-w-[1600px] mx-auto px-4 lg:px-6 py-6">
       {/* Title Header - Spans full width above both sidebar and player */}
       <div className="mb-4">
@@ -362,7 +400,7 @@ export default function Watch() {
         <div className="flex-1 min-w-0 order-1 lg:order-2 space-y-4">
           {/* Player Section */}
           <div className="space-y-0.5">
-            <div ref={playerContainerRef} className="relative aspect-video bg-black rounded-t-2xl overflow-hidden shadow-2xl group border-x border-t border-white/5">
+            <div ref={playerContainerRef} className={`bg-black overflow-hidden shadow-2xl border-x border-t border-white/5 ${lightMode ? 'fixed top-1/2 left-1/2 z-[70] rounded-none' : 'relative aspect-video rounded-t-2xl'}`} style={lightMode ? { width: 'min(90vw, calc(90vh * 16 / 9))', height: 'min(90vh, calc(90vw * 9 / 16))', transform: 'translate(-50%, -50%)' } : {}}>
                 {/* Loading state */}
                 {streamLoading && (
                   <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black z-10">
@@ -393,15 +431,6 @@ export default function Watch() {
                     referrerPolicy="origin"
                   />
                 )}
-
-                <div className="absolute top-4 left-4 pointer-events-none flex items-center gap-2">
-                  <div className="bg-black/80 backdrop-blur-md px-3 py-1.5 rounded-lg border border-white/10 text-[10px] font-black flex items-center gap-2">
-                    {embedUrls
-                      ? <><div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div> LIVE ({streamMode.toUpperCase()})</>
-                      : <><div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></div> LOADING...</>
-                    }
-                  </div>
-                </div>
             </div>
 
             {/* Action Bar (Below Player) */}
@@ -435,8 +464,11 @@ export default function Watch() {
                   {autoSkip && <span className="w-1.5 h-1.5 bg-primary rounded-full" />} Auto Skip
                 </button>
 
-                <button className="flex items-center gap-1 hover:text-white transition-colors cursor-pointer">
-                  <Sun className="w-3.5 h-3.5" /> Light
+                <button 
+                  onClick={() => setLightMode(!lightMode)}
+                  className={`flex items-center gap-1 transition-colors cursor-pointer ${lightMode ? 'text-primary' : 'hover:text-white'}`}
+                >
+                  {lightMode && <span className="w-1.5 h-1.5 bg-primary rounded-full" />} <Sun className="w-3.5 h-3.5" /> Light
                 </button>
 
                 <div className="flex items-center gap-3 ml-2 border-l border-white/10 pl-4">
@@ -649,5 +681,6 @@ export default function Watch() {
         </div>
       </div>
     </div>
+    </>
   );
 }
