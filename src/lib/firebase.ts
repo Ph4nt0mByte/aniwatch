@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 
@@ -10,6 +10,14 @@ export const googleProvider = new GoogleAuthProvider();
 
 export const signInWithGoogle = () => signInWithPopup(auth, googleProvider);
 export const logout = () => signOut(auth);
+
+export const registerWithEmail = (email: string, password: string, username: string) =>
+  createUserWithEmailAndPassword(auth, email, password).then((cred) =>
+    updateProfile(cred.user, { displayName: username }).then(() => cred.user)
+  );
+
+export const loginWithEmail = (email: string, password: string) =>
+  signInWithEmailAndPassword(auth, email, password);
 
 async function testConnection() {
   try {

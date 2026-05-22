@@ -34,6 +34,23 @@ export default function Watch() {
   const [streamError, setStreamError] = useState<string | null>(null);
   const [lightMode, setLightMode] = useState(false);
 
+  // Hover modal state for season/relation cards
+  const [hoverModal, setHoverModal] = useState<{ entry: any; x: number; y: number } | null>(null);
+  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showHoverModal = (entry: any, e: React.MouseEvent) => {
+    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    hoverTimerRef.current = setTimeout(() => {
+      setHoverModal({ entry, x: rect.left + rect.width / 2, y: rect.top });
+    }, 500);
+  };
+
+  const hideHoverModal = () => {
+    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+    hoverTimerRef.current = setTimeout(() => setHoverModal(null), 200);
+  };
+
   useEffect(() => {
     document.body.style.overflow = lightMode ? 'hidden' : '';
     return () => { document.body.style.overflow = ''; };
@@ -82,37 +99,23 @@ export default function Watch() {
               });
             });
             
-            // Fetch relations for each related anime (breadth-first)
-            let currentBatch = [...toFetch];
-            let depth = 0;
-            const maxDepth = 3;
-            
-            while (currentBatch.length > 0 && depth < maxDepth) {
-              const nextBatch: number[] = [];
-              
-              for (const relatedId of currentBatch) {
-                try {
-                  await new Promise(resolve => setTimeout(resolve, 350));
-                  const res = await jikanApi.getRelations(relatedId);
-                  
-                  if (res?.data && isMounted) {
-                    res.data.forEach((r: any) => {
-                      allRelations.push(r);
-                      r.entry.forEach((e: any) => {
-                        if (!allRelatedIds.has(e.mal_id)) {
-                          allRelatedIds.add(e.mal_id);
-                          nextBatch.push(e.mal_id);
-                        }
-                      });
-                    });
-                  }
-                } catch (e) {
-                  console.warn(`Failed to fetch relations for ${relatedId}:`, e);
+            // Fetch relations for each related anime in parallel batches (Jikan ~3 req/s)
+            const batchSize = 3;
+            for (let i = 0; i < toFetch.length; i += batchSize) {
+              const batch = toFetch.slice(i, i + batchSize);
+              const results = await Promise.allSettled(
+                batch.map(id => jikanApi.getRelations(id).catch(() => null))
+              );
+              results.forEach(res => {
+                if (res.status === 'fulfilled' && res.value?.data && isMounted) {
+                  res.value.data.forEach((r: any) => {
+                    allRelations.push(r);
+                  });
                 }
+              });
+              if (i + batchSize < toFetch.length) {
+                await new Promise(resolve => setTimeout(resolve, 1000));
               }
-              
-              currentBatch = nextBatch;
-              depth++;
             }
             
             if (isMounted) {
@@ -145,20 +148,21 @@ export default function Watch() {
       const fetchDetails = async () => {
         const entries = relations.flatMap(r => r.entry);
         const uniqueEntries = Array.from(new Map(entries.map(item => [item.mal_id, item])).values());
+        const toFetch = uniqueEntries.slice(0, 25).filter(e => !relationCache[e.mal_id] && e.mal_id !== anime?.mal_id);
         
-        for (const entry of uniqueEntries.slice(0, 25)) {
-          if (relationCache[entry.mal_id] || entry.mal_id === anime?.mal_id) continue;
-          
-          try {
-            const res = await fetch(`https://api.jikan.moe/v4/anime/${entry.mal_id}`);
-            const data = await res.json();
-            if (data?.data) {
-              setRelationCache(prev => ({ ...prev, [entry.mal_id]: data.data }));
+        const batchSize = 3;
+        for (let i = 0; i < toFetch.length; i += batchSize) {
+          const batch = toFetch.slice(i, i + batchSize);
+          const results = await Promise.allSettled(
+            batch.map(entry => fetch(`https://api.jikan.moe/v4/anime/${entry.mal_id}`).then(r => r.json()).catch(() => null))
+          );
+          results.forEach((res, j) => {
+            if (res.status === 'fulfilled' && res.value?.data) {
+              setRelationCache(prev => ({ ...prev, [batch[j].mal_id]: res.value.data }));
             }
-            // Respect Jikan rate limit: ~2 requests per second is usually safe for short bursts
-            await new Promise(r => setTimeout(r, 600)); 
-          } catch (e) {
-            console.error(e);
+          });
+          if (i + batchSize < toFetch.length) {
+            await new Promise(r => setTimeout(r, 1000));
           }
         }
       };
@@ -209,7 +213,11 @@ export default function Watch() {
     }
   };
 
+  // Listen for playback time updates from megaplay and save progress
   useEffect(() => {
+    const progressKey = `playback-${id}-${epNumber}`;
+    let lastSaved = 0;
+
     const handleMessage = (event: MessageEvent) => {
       if (event.origin !== 'https://megaplay.buzz') return;
 
@@ -222,7 +230,17 @@ export default function Watch() {
 
       if (data?.channel !== 'megacloud') return;
 
+      // Save playback position from time/watching-log events
+      if ((data.event === 'time' || data.event === 'watching-log') && typeof data.time === 'number') {
+        const now = Date.now();
+        if (now - lastSaved > 5000) {
+          lastSaved = now;
+          localStorage.setItem(progressKey, JSON.stringify({ time: data.time, duration: data.duration, savedAt: now }));
+        }
+      }
+
       if (data.event === 'complete' && autoNext) {
+        localStorage.removeItem(progressKey);
         const maxEp = anime?.episodes || 999;
         if (epNumber < maxEp) {
           navigate(`/watch/${id}/${epNumber + 1}`);
@@ -233,6 +251,30 @@ export default function Watch() {
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
   }, [autoNext, epNumber, id, anime, navigate]);
+
+  // Restore saved playback position
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  useEffect(() => {
+    const progressKey = `playback-${id}-${epNumber}`;
+    const saved = localStorage.getItem(progressKey);
+    if (!saved || !iframeRef.current) return;
+
+    const handleReady = (event: MessageEvent) => {
+      if (event.origin !== 'https://megaplay.buzz') return;
+      let data: any;
+      try { data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data; } catch { return; }
+      if (data?.channel !== 'megacloud' || data.event !== 'time') return;
+
+      const { time } = JSON.parse(saved);
+      if (typeof time === 'number' && time > 3 && iframeRef.current?.contentWindow) {
+        iframeRef.current.contentWindow.postMessage(JSON.stringify({ channel: 'megacloud', event: 'seek', time }), 'https://megaplay.buzz');
+      }
+      window.removeEventListener('message', handleReady);
+    };
+
+    window.addEventListener('message', handleReady);
+    return () => window.removeEventListener('message', handleReady);
+  }, [id, epNumber, embedUrls]);
   // Fetch embed URLs from Anikoto (proxied) when anime or episode changes
   useEffect(() => {
     if (!anime) return;
@@ -421,6 +463,7 @@ export default function Watch() {
                 {/* Iframe player — uses Anikoto's embed_url (megaplay.buzz/stream/s-2/...) */}
                 {!streamLoading && !streamError && embedUrls && embedUrls[streamMode] && (
                   <iframe
+                    ref={iframeRef}
                     key={embedUrls[streamMode]}
                     src={embedUrls[streamMode]}
                     className="w-full h-full"
@@ -571,7 +614,7 @@ export default function Watch() {
                   relatedMap.set(anime.mal_id, {
                     mal_id: anime.mal_id,
                     name: anime.title,
-                    relation: 'Current',
+                    relation: 'Watching',
                     type: 'anime'
                   });
                   
@@ -590,7 +633,7 @@ export default function Watch() {
                   // Convert to array and sort by relation priority
                   const relationPriority: Record<string, number> = {
                     'Prequel': 1,
-                    'Current': 2,
+                    'Watching': 2,
                     'Sequel': 3,
                     'Side story': 4,
                     'Parent story': 5,
@@ -613,6 +656,8 @@ export default function Watch() {
                     <button
                       key={`${entry.mal_id}-${idx}`}
                       onClick={() => String(entry.mal_id) !== id && navigate(`/watch/${entry.mal_id}/1`)}
+                      onMouseEnter={(e) => showHoverModal(entry, e)}
+                      onMouseLeave={hideHoverModal}
                       className={`flex-shrink-0 w-64 p-4 rounded-2xl border transition-all text-left flex gap-4 group cursor-pointer ${String(entry.mal_id) === id ? 'bg-primary/20 border-primary shadow-[0_0_20px_rgba(255,221,149,0.15)] ring-1 ring-primary/50' : 'bg-white/5 border-white/5 hover:bg-white/10 hover:border-white/20'}`}
                     >
                       <div className="shrink-0 w-12 h-16 bg-white/10 rounded-lg overflow-hidden relative border border-white/5">
@@ -643,13 +688,66 @@ export default function Watch() {
                           })()}
                         </p>
                         <span className={`text-[9px] font-black uppercase mt-1 tracking-widest ${String(entry.mal_id) === id ? 'text-primary' : 'text-gray-500'}`}>
-                          {String(entry.mal_id) === id ? 'Watching Now' : entry.relation}
+                          {String(entry.mal_id) === id ? '▶ Now' : entry.relation}
                         </span>
                       </div>
                     </button>
                   ));
                 })()}
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* Hover Modal */}
+          {hoverModal && (
+            <div
+              className="fixed z-[80] w-72 bg-[#1a1b1e] border border-white/10 rounded-2xl shadow-2xl overflow-hidden"
+              style={{
+                left: Math.min(hoverModal.x, window.innerWidth - 300),
+                top: Math.max(hoverModal.y - 20, 80),
+                transform: 'translate(-50%, -100%)',
+              }}
+              onMouseEnter={() => { if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current); }}
+              onMouseLeave={hideHoverModal}
+            >
+              <div className="aspect-video bg-black/50 relative overflow-hidden">
+                <img
+                  src={relationCache[hoverModal.entry.mal_id]?.images?.webp?.image_url || (String(hoverModal.entry.mal_id) === id ? anime.images.webp.large_image_url : '')}
+                  className="w-full h-full object-cover"
+                  alt=""
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-[#1a1b1e] to-transparent" />
+              </div>
+              <div className="p-4 space-y-3">
+                <h4 className="text-sm font-black line-clamp-2 leading-snug">
+                  {(() => {
+                    const detail = relationCache[hoverModal.entry.mal_id];
+                    if (detail) return language === 'en' ? (detail.title_english || detail.title) : detail.title;
+                    return hoverModal.entry.name;
+                  })()}
+                </h4>
+                {relationCache[hoverModal.entry.mal_id]?.synopsis && (
+                  <p className="text-[11px] text-gray-400 line-clamp-3 leading-relaxed">
+                    {relationCache[hoverModal.entry.mal_id].synopsis}
+                  </p>
+                )}
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-black uppercase text-primary bg-primary/10 px-2 py-0.5 rounded">
+                    {relationCache[hoverModal.entry.mal_id]?.type || hoverModal.entry.type || 'ANIME'}
+                  </span>
+                  <span className="text-[10px] font-black uppercase text-gray-500">
+                    {hoverModal.entry.relation}
+                  </span>
+                </div>
+                {String(hoverModal.entry.mal_id) !== id && (
+                  <button
+                    onClick={() => navigate(`/watch/${hoverModal.entry.mal_id}/1`)}
+                    className="w-full bg-primary text-black py-2 rounded-lg text-xs font-black hover:bg-primary/90 transition-colors flex items-center justify-center gap-2"
+                  >
+                    <Play className="w-3.5 h-3.5 fill-current" /> Watch Now
+                  </button>
+                )}
               </div>
             </div>
           )}
