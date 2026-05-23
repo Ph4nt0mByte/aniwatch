@@ -70,12 +70,14 @@ export default function ContinueWatching() {
                   <Play className="w-12 h-12 text-primary fill-current" />
                 </div>
                 {/* Progress bar */}
-                <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/20">
-                  <div 
-                    className="h-full bg-primary" 
-                    style={{ width: `${(item.progress / item.duration) * 100}%` }}
-                  ></div>
-                </div>
+                {item.duration > 0 && (
+                  <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/20">
+                    <div 
+                      className="h-full bg-primary" 
+                      style={{ width: `${Math.min((item.progress / item.duration) * 100, 100)}%` }}
+                    ></div>
+                  </div>
+                )}
               </div>
               <div className="p-4">
                 <h3 className="font-bold line-clamp-1 group-hover:text-primary transition-colors">{item.title}</h3>

@@ -34,23 +34,6 @@ export default function Watch() {
   const [streamError, setStreamError] = useState<string | null>(null);
   const [lightMode, setLightMode] = useState(false);
 
-  // Hover modal state for season/relation cards
-  const [hoverModal, setHoverModal] = useState<{ entry: any; x: number; y: number } | null>(null);
-  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const showHoverModal = (entry: any, e: React.MouseEvent) => {
-    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    hoverTimerRef.current = setTimeout(() => {
-      setHoverModal({ entry, x: rect.left + rect.width / 2, y: rect.top });
-    }, 500);
-  };
-
-  const hideHoverModal = () => {
-    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
-    hoverTimerRef.current = setTimeout(() => setHoverModal(null), 200);
-  };
-
   useEffect(() => {
     document.body.style.overflow = lightMode ? 'hidden' : '';
     return () => { document.body.style.overflow = ''; };
@@ -124,7 +107,18 @@ export default function Watch() {
             
             // Save progress to "Continue Watching"
             if (user && details.data) {
-              saveProgress(details.data, epNumber);
+              const progressKey = `playback-${id}-${epNumber}`;
+              const saved = localStorage.getItem(progressKey);
+              let initialTime = 0;
+              let initialDuration = 0;
+              if (saved) {
+                try {
+                  const parsed = JSON.parse(saved);
+                  initialTime = parsed.time || 0;
+                  initialDuration = parsed.duration || 0;
+                } catch {}
+              }
+              saveProgress(details.data, epNumber, initialTime, initialDuration);
             }
           }
         }
@@ -170,7 +164,7 @@ export default function Watch() {
     }
   }, [relations, anime?.mal_id]);
 
-  const saveProgress = async (animeData: Anime, currentEp: number) => {
+  const saveProgress = async (animeData: Anime, currentEp: number, progress = 0, duration = 0) => {
     if (!user) return;
     const path = `users/${user.uid}/watchHistory/${animeData.mal_id}`;
     try {
@@ -179,8 +173,8 @@ export default function Watch() {
         title: animeData.title,
         poster: animeData.images.webp.large_image_url,
         episodeNumber: currentEp,
-        progress: 10,
-        duration: 24,
+        progress,
+        duration,
         updatedAt: serverTimestamp()
       }, { merge: true });
     } catch (err) {
@@ -217,6 +211,7 @@ export default function Watch() {
   useEffect(() => {
     const progressKey = `playback-${id}-${epNumber}`;
     let lastSaved = 0;
+    let lastFirestoreSaved = 0;
 
     const handleMessage = (event: MessageEvent) => {
       if (event.origin !== 'https://megaplay.buzz') return;
@@ -236,11 +231,20 @@ export default function Watch() {
         if (now - lastSaved > 5000) {
           lastSaved = now;
           localStorage.setItem(progressKey, JSON.stringify({ time: data.time, duration: data.duration, savedAt: now }));
+          
+          // Throttled Firestore save: every 15 seconds
+          if (now - lastFirestoreSaved > 15000 && anime) {
+            lastFirestoreSaved = now;
+            saveProgress(anime, epNumber, data.time, data.duration);
+          }
         }
       }
 
       if (data.event === 'complete' && autoNext) {
         localStorage.removeItem(progressKey);
+        if (anime) {
+          saveProgress(anime, epNumber, data.duration || 100, data.duration || 100);
+        }
         const maxEp = anime?.episodes || 999;
         if (epNumber < maxEp) {
           navigate(`/watch/${id}/${epNumber + 1}`);
@@ -656,8 +660,6 @@ export default function Watch() {
                     <button
                       key={`${entry.mal_id}-${idx}`}
                       onClick={() => String(entry.mal_id) !== id && navigate(`/watch/${entry.mal_id}/1`)}
-                      onMouseEnter={(e) => showHoverModal(entry, e)}
-                      onMouseLeave={hideHoverModal}
                       className={`flex-shrink-0 w-64 p-4 rounded-2xl border transition-all text-left flex gap-4 group cursor-pointer ${String(entry.mal_id) === id ? 'bg-primary/20 border-primary shadow-[0_0_20px_rgba(255,221,149,0.15)] ring-1 ring-primary/50' : 'bg-white/5 border-white/5 hover:bg-white/10 hover:border-white/20'}`}
                     >
                       <div className="shrink-0 w-12 h-16 bg-white/10 rounded-lg overflow-hidden relative border border-white/5">
@@ -695,59 +697,6 @@ export default function Watch() {
                   ));
                 })()}
                 </div>
-              </div>
-            </div>
-          )}
-
-          {/* Hover Modal */}
-          {hoverModal && (
-            <div
-              className="fixed z-[80] w-72 bg-[#1a1b1e] border border-white/10 rounded-2xl shadow-2xl overflow-hidden"
-              style={{
-                left: Math.min(hoverModal.x, window.innerWidth - 300),
-                top: Math.max(hoverModal.y - 20, 80),
-                transform: 'translate(-50%, -100%)',
-              }}
-              onMouseEnter={() => { if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current); }}
-              onMouseLeave={hideHoverModal}
-            >
-              <div className="aspect-video bg-black/50 relative overflow-hidden">
-                <img
-                  src={relationCache[hoverModal.entry.mal_id]?.images?.webp?.image_url || (String(hoverModal.entry.mal_id) === id ? anime.images.webp.large_image_url : '')}
-                  className="w-full h-full object-cover"
-                  alt=""
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-[#1a1b1e] to-transparent" />
-              </div>
-              <div className="p-4 space-y-3">
-                <h4 className="text-sm font-black line-clamp-2 leading-snug">
-                  {(() => {
-                    const detail = relationCache[hoverModal.entry.mal_id];
-                    if (detail) return language === 'en' ? (detail.title_english || detail.title) : detail.title;
-                    return hoverModal.entry.name;
-                  })()}
-                </h4>
-                {relationCache[hoverModal.entry.mal_id]?.synopsis && (
-                  <p className="text-[11px] text-gray-400 line-clamp-3 leading-relaxed">
-                    {relationCache[hoverModal.entry.mal_id].synopsis}
-                  </p>
-                )}
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-black uppercase text-primary bg-primary/10 px-2 py-0.5 rounded">
-                    {relationCache[hoverModal.entry.mal_id]?.type || hoverModal.entry.type || 'ANIME'}
-                  </span>
-                  <span className="text-[10px] font-black uppercase text-gray-500">
-                    {hoverModal.entry.relation}
-                  </span>
-                </div>
-                {String(hoverModal.entry.mal_id) !== id && (
-                  <button
-                    onClick={() => navigate(`/watch/${hoverModal.entry.mal_id}/1`)}
-                    className="w-full bg-primary text-black py-2 rounded-lg text-xs font-black hover:bg-primary/90 transition-colors flex items-center justify-center gap-2"
-                  >
-                    <Play className="w-3.5 h-3.5 fill-current" /> Watch Now
-                  </button>
-                )}
               </div>
             </div>
           )}
