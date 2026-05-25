@@ -23,7 +23,7 @@ export default function MovieDetails() {
         const data = await tmdbApi.getDetails(id, type);
         setDetails(data);
         if (type === 'tv' && data.seasons && data.seasons.length > 0) {
-          const firstSeasonNum = data.seasons[0].season_number;
+          const firstSeasonNum = data.seasons.find((s: any) => s.season_number > 0)?.season_number ?? 1;
           setSelectedSeason(firstSeasonNum);
           fetchSeasonEpisodes(id, firstSeasonNum);
         }

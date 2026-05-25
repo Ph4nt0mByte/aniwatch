@@ -51,7 +51,9 @@ export default function MovieWatch() {
         const data = await tmdbApi.getDetails(id, type);
         setDetails(data);
         if (type === 'tv') {
-          const sNum = season ? Number(season) : (data.seasons && data.seasons.length > 0 ? data.seasons[0].season_number : 1);
+          const sNum = season ? Number(season) : (
+            data.seasons?.find((s: any) => s.season_number > 0)?.season_number ?? 1
+          );
           setSelectedSeason(sNum);
           const eps = await tmdbApi.getSeasonEpisodes(id, sNum);
           setEpisodes(eps);
@@ -93,15 +95,8 @@ export default function MovieWatch() {
 
   const handleSeasonChange = async (seasonNum: number) => {
     if (!id) return;
-    setSelectedSeason(seasonNum);
-    try {
-      const eps = await tmdbApi.getSeasonEpisodes(id, seasonNum);
-      setEpisodes(eps);
-      // Navigate to the first episode of the selected season
-      navigate(`/movie/watch/${id}/season/${seasonNum}/episode/1?type=tv`);
-    } catch (err) {
-      console.error('Failed to fetch season episodes:', err);
-    }
+    // Navigate first — the useEffect keyed on `season` will handle the fetch
+    navigate(`/movie/watch/${id}/season/${seasonNum}/episode/1?type=tv`);
   };
 
   if (loading || !details) {
