@@ -16,6 +16,12 @@ import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
 import { useState } from 'react';
 
+import MovieHome from './pages/movie/MovieHome';
+import MovieSearch from './pages/movie/MovieSearch';
+import MovieDetails from './pages/movie/MovieDetails';
+import MovieWatch from './pages/movie/MovieWatch';
+import MovieContinueWatching from './pages/movie/MovieContinueWatching';
+
 function AppContent() {
   const { user, loading } = useAuth();
   const [isSidebarOpen, setSidebarOpen] = useState(false);
@@ -43,6 +49,16 @@ function AppContent() {
           <Route 
             path="/continue-watching" 
             element={user ? <ContinueWatching /> : <Navigate to="/auth" />} 
+          />
+          {/* Parallel Hollywood Movie & TV Routes */}
+          <Route path="/movie" element={<MovieHome />} />
+          <Route path="/movie/search" element={<MovieSearch />} />
+          <Route path="/movie/details/:id" element={<MovieDetails />} />
+          <Route path="/movie/watch/:id" element={<MovieWatch />} />
+          <Route path="/movie/watch/:id/season/:season/episode/:episode" element={<MovieWatch />} />
+          <Route 
+            path="/movie/continue-watching" 
+            element={user ? <MovieContinueWatching /> : <Navigate to="/auth" />} 
           />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

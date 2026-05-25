@@ -1,6 +1,6 @@
 import { Search, Menu, MessageCircle, Send, Radio, User, LogOut, Settings, History, Bookmark } from 'lucide-react';
 import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { logout } from '../lib/firebase';
@@ -17,11 +17,17 @@ export default function Navbar({ onMenuClick }: NavbarProps) {
   const { user } = useAuth();
   const { language, setLanguage } = useLanguage();
   const navigate = useNavigate();
+  const location = useLocation();
+  const isMovieMode = location.pathname.startsWith('/movie');
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchQuery.trim()) {
-      navigate(`/search?keyword=${encodeURIComponent(searchQuery)}`);
+      if (isMovieMode) {
+        navigate(`/movie/search?keyword=${encodeURIComponent(searchQuery)}`);
+      } else {
+        navigate(`/search?keyword=${encodeURIComponent(searchQuery)}`);
+      }
     }
   };
 
@@ -52,16 +58,16 @@ export default function Navbar({ onMenuClick }: NavbarProps) {
 
         <div className="flex bg-white/5 rounded-lg border border-white/5 p-0.5 shrink-0">
           <button 
-            onClick={() => setLanguage('en')}
-            className={`px-3 py-1 rounded-md text-[10px] font-black tracking-wider transition-all cursor-pointer ${language === 'en' ? 'bg-primary text-black' : 'text-gray-500 hover:text-white'}`}
+            onClick={() => navigate('/')}
+            className={`px-3.5 py-1 rounded-md text-[10px] font-black tracking-wider transition-all cursor-pointer ${!isMovieMode ? 'bg-primary text-black' : 'text-gray-500 hover:text-white'}`}
           >
-            EN
+            ANIME
           </button>
           <button 
-            onClick={() => setLanguage('jp')}
-            className={`px-3 py-1 rounded-md text-[10px] font-black tracking-wider transition-all cursor-pointer ${language === 'jp' ? 'bg-primary text-black' : 'text-gray-500 hover:text-white'}`}
+            onClick={() => navigate('/movie')}
+            className={`px-3.5 py-1 rounded-md text-[10px] font-black tracking-wider transition-all cursor-pointer ${isMovieMode ? 'bg-primary text-black' : 'text-gray-500 hover:text-white'}`}
           >
-            JP
+            MOVIE
           </button>
         </div>
       </div>
@@ -98,7 +104,7 @@ export default function Navbar({ onMenuClick }: NavbarProps) {
                     <button onClick={() => { navigate('/profile'); setIsProfileOpen(false); }} className="w-full px-4 py-2 text-left hover:bg-white/5 flex items-center gap-3">
                       <User className="w-4 h-4" /> Profile
                     </button>
-                    <button onClick={() => { navigate('/continue-watching'); setIsProfileOpen(false); }} className="w-full px-4 py-2 text-left hover:bg-white/5 flex items-center gap-3">
+                    <button onClick={() => { navigate(isMovieMode ? '/movie/continue-watching' : '/continue-watching'); setIsProfileOpen(false); }} className="w-full px-4 py-2 text-left hover:bg-white/5 flex items-center gap-3">
                       <History className="w-4 h-4" /> Continue Watching
                     </button>
                     <button onClick={() => { navigate('/watchlist'); setIsProfileOpen(false); }} className="w-full px-4 py-2 text-left hover:bg-white/5 flex items-center gap-3">
