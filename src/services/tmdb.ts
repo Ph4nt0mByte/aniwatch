@@ -1,5 +1,13 @@
-const TMDB_API_KEY = '1a6693362184f321885b871d2405489f';
+const TMDB_TOKEN = import.meta.env.VITE_TMDB_TOKEN as string;
 const TMDB_BASE_URL = 'https://api.themoviedb.org/3';
+
+const tmdbFetch = (url: string) =>
+  fetch(url, {
+    headers: {
+      Authorization: `Bearer ${TMDB_TOKEN}`,
+      'Content-Type': 'application/json',
+    },
+  });
 
 export interface TMDBMovieOrTV {
   id: number;
@@ -65,43 +73,43 @@ export interface TMDBEpisode {
 
 export const tmdbApi = {
   getTrending: async (): Promise<TMDBMovieOrTV[]> => {
-    const res = await fetch(`${TMDB_BASE_URL}/trending/all/day?api_key=${TMDB_API_KEY}`);
+    const res = await tmdbFetch(`${TMDB_BASE_URL}/trending/all/day?language=en-US`);
     const data = await res.json();
     return (data.results || []).filter((item: any) => item.media_type === 'movie' || item.media_type === 'tv');
   },
 
   getPopularMovies: async (): Promise<TMDBMovieOrTV[]> => {
-    const res = await fetch(`${TMDB_BASE_URL}/movie/popular?api_key=${TMDB_API_KEY}`);
+    const res = await tmdbFetch(`${TMDB_BASE_URL}/movie/popular?language=en-US`);
     const data = await res.json();
     return (data.results || []).map((item: any) => ({ ...item, media_type: 'movie' }));
   },
 
   getPopularTV: async (): Promise<TMDBMovieOrTV[]> => {
-    const res = await fetch(`${TMDB_BASE_URL}/tv/popular?api_key=${TMDB_API_KEY}`);
+    const res = await tmdbFetch(`${TMDB_BASE_URL}/tv/popular?language=en-US`);
     const data = await res.json();
     return (data.results || []).map((item: any) => ({ ...item, media_type: 'tv' }));
   },
 
   getTopRated: async (): Promise<TMDBMovieOrTV[]> => {
-    const res = await fetch(`${TMDB_BASE_URL}/movie/top_rated?api_key=${TMDB_API_KEY}`);
+    const res = await tmdbFetch(`${TMDB_BASE_URL}/movie/top_rated?language=en-US`);
     const data = await res.json();
     return (data.results || []).map((item: any) => ({ ...item, media_type: 'movie' }));
   },
 
   searchMulti: async (query: string): Promise<TMDBMovieOrTV[]> => {
-    const res = await fetch(`${TMDB_BASE_URL}/search/multi?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(query)}`);
+    const res = await tmdbFetch(`${TMDB_BASE_URL}/search/multi?query=${encodeURIComponent(query)}&language=en-US`);
     const data = await res.json();
     return (data.results || []).filter((item: any) => item.media_type === 'movie' || item.media_type === 'tv');
   },
 
   getDetails: async (id: string | number, type: 'movie' | 'tv'): Promise<TMDBDetails> => {
-    const res = await fetch(`${TMDB_BASE_URL}/${type}/${id}?api_key=${TMDB_API_KEY}&append_to_response=credits,recommendations`);
+    const res = await tmdbFetch(`${TMDB_BASE_URL}/${type}/${id}?append_to_response=credits,recommendations&language=en-US`);
     const data = await res.json();
     return { ...data, media_type: type };
   },
 
   getSeasonEpisodes: async (id: string | number, seasonNum: number): Promise<TMDBEpisode[]> => {
-    const res = await fetch(`${TMDB_BASE_URL}/tv/${id}/season/${seasonNum}?api_key=${TMDB_API_KEY}`);
+    const res = await tmdbFetch(`${TMDB_BASE_URL}/tv/${id}/season/${seasonNum}?language=en-US`);
     const data = await res.json();
     return data.episodes || [];
   },
