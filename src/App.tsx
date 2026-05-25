@@ -39,7 +39,7 @@ function AppContent() {
       <Navbar onMenuClick={() => setSidebarOpen(!isSidebarOpen)} />
       <Sidebar isOpen={isSidebarOpen} onClose={() => setSidebarOpen(false)} />
       
-      <main className="flex-grow pt-16">
+      <main className="flex-grow pt-12">
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/search" element={<Search />} />
@@ -67,11 +67,10 @@ function AppContent() {
       <footer className="bg-[#111111] p-8 mt-12">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6">
           <div className="flex items-center gap-2">
-            <img src="/logo.png" alt="AniWatch" className="h-8 onerror-show-text" />
-            <span className="text-2xl font-bold italic tracking-tighter">ani<span className="text-primary italic">watch</span></span>
+            <span className="text-2xl font-bold italic tracking-tighter">ignis<span className="text-primary italic">play</span></span>
           </div>
           <div className="text-text-secondary text-sm">
-            © 2026 AniWatch. All rights reserved.
+            © 2026 IgnisPlay. All rights reserved.
           </div>
         </div>
       </footer>

@@ -4,7 +4,7 @@ import { tmdbApi, TMDBDetails, TMDBEpisode } from '../../services/tmdb';
 import { useAuth } from '../../contexts/AuthContext';
 import { db } from '../../lib/firebase';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { Play, Tv, Film, ChevronRight, ArrowLeft } from 'lucide-react';
+import { Play, Tv, Film, ChevronRight, ArrowLeft, Sun, Maximize } from 'lucide-react';
 
 export default function MovieWatch() {
   const { id, season, episode } = useParams<{ id: string; season?: string; episode?: string }>();
@@ -20,6 +20,23 @@ export default function MovieWatch() {
   const currentSeason = season ? Number(season) : 1;
   const currentEpisode = episode ? Number(episode) : 1;
   const isMovie = type === 'movie';
+  const [lightMode, setLightMode] = useState(false);
+  const playerContainerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    document.body.style.overflow = lightMode ? 'hidden' : '';
+    return () => { document.body.style.overflow = ''; };
+  }, [lightMode]);
+
+  const toggleFullscreen = () => {
+    if (playerContainerRef.current) {
+      if (document.fullscreenElement) {
+        document.exitFullscreen();
+      } else {
+        playerContainerRef.current.requestFullscreen();
+      }
+    }
+  };
 
   // Construct vidsrcme.ru embed URL
   const embedUrl = isMovie
@@ -97,6 +114,13 @@ export default function MovieWatch() {
 
   return (
     <div className="bg-[#202125] min-h-screen text-white pb-16">
+      {/* Light Mode Backdrop */}
+      {lightMode && (
+        <div
+          className="fixed inset-0 bg-black/90 z-[60]"
+          onClick={() => setLightMode(false)}
+        />
+      )}
       <div className="max-w-7xl mx-auto px-4 pt-6">
         {/* Navigation Breadcrumb */}
         <div className="flex items-center gap-2 text-xs text-text-secondary font-bold uppercase tracking-wider mb-6">
@@ -120,7 +144,11 @@ export default function MovieWatch() {
         <div className="flex flex-col lg:flex-row gap-6">
           {/* Left: Player iframe */}
           <div className="flex-grow">
-            <div className="aspect-video w-full rounded-xl overflow-hidden bg-black border border-white/5 shadow-2xl relative">
+            <div
+              ref={playerContainerRef}
+              className={`bg-black overflow-hidden shadow-2xl border border-white/5 ${lightMode ? 'fixed top-1/2 left-1/2 z-[70] rounded-none' : 'relative aspect-video w-full rounded-xl'}`}
+              style={lightMode ? { width: 'min(90vw, calc(90vh * 16 / 9))', height: 'min(90vh, calc(90vw * 9 / 16))', transform: 'translate(-50%, -50%)' } : {}}
+            >
               <iframe
                 src={embedUrl}
                 className="w-full h-full border-0"
@@ -128,6 +156,23 @@ export default function MovieWatch() {
                 scrolling="no"
                 allow="autoplay; encrypted-media"
               />
+            </div>
+
+            {/* Action Bar */}
+            <div className="bg-[#121315] border border-white/5 border-t-0 p-2 px-4 flex items-center gap-4 text-[11px] font-bold text-gray-400 rounded-b-xl">
+              <button
+                onClick={toggleFullscreen}
+                className="flex items-center gap-1 hover:text-white transition-colors cursor-pointer"
+              >
+                <Maximize className="w-3.5 h-3.5" /> Expand
+              </button>
+              <button
+                onClick={() => setLightMode(!lightMode)}
+                className={`flex items-center gap-1 transition-colors cursor-pointer ${lightMode ? 'text-primary' : 'hover:text-white'}`}
+              >
+                {lightMode && <span className="w-1.5 h-1.5 bg-primary rounded-full" />}
+                <Sun className="w-3.5 h-3.5" /> Light
+              </button>
             </div>
             
             {/* Show Info details */}

@@ -26,7 +26,7 @@ export default function Spotlight({ animeList }: SpotlightProps) {
   if (!current) return null;
 
   return (
-    <div className="relative h-[450px] md:h-[600px] w-full overflow-hidden mb-12">
+    <div className="relative h-[500px] md:h-[680px] w-full overflow-hidden mb-12">
       <AnimatePresence mode="wait">
         <motion.div
           key={current.mal_id}

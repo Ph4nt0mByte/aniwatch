@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { jikanApi } from '../services/api';
 import { Anime } from '../types';
 import Spotlight from '../components/Spotlight';
 import AnimeCard from '../components/AnimeCard';
-import { ChevronRight, TrendingUp, Zap, Clock, Star } from 'lucide-react';
+import { ChevronRight, TrendingUp, Zap, Clock, Star, ChevronLeft } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useLanguage } from '../contexts/LanguageContext';
 
@@ -13,6 +13,7 @@ export default function Home() {
   const [airingAnime, setAiringAnime] = useState<Anime[]>([]);
   const [loading, setLoading] = useState(true);
   const { language } = useLanguage();
+  const trendingRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -53,8 +54,12 @@ export default function Home() {
             <h2 className="text-2xl font-black italic flex items-center gap-2">
               <TrendingUp className="w-6 h-6 text-primary" /> Trending
             </h2>
+            <div className="flex gap-2">
+              <button onClick={() => trendingRef.current?.scrollBy({ left: -600, behavior: 'smooth' })} className="p-2 bg-white/5 hover:bg-primary hover:text-black rounded-lg border border-white/5 transition-all cursor-pointer"><ChevronLeft className="w-4 h-4" /></button>
+              <button onClick={() => trendingRef.current?.scrollBy({ left: 600, behavior: 'smooth' })} className="p-2 bg-white/5 hover:bg-primary hover:text-black rounded-lg border border-white/5 transition-all cursor-pointer"><ChevronRight className="w-4 h-4" /></button>
+            </div>
           </div>
-          <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide">
+          <div ref={trendingRef} className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide">
             {seasonalAnime.slice(0, 10).map((anime, index) => (
               <div key={anime.mal_id} className="min-w-[200px] w-[200px]">
                 <AnimeCard anime={anime} rank={index + 1} />

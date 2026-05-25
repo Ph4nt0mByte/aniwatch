@@ -32,13 +32,13 @@ export default function Navbar({ onMenuClick }: NavbarProps) {
   };
 
   return (
-    <nav className="fixed top-0 left-0 right-0 h-16 bg-[#202125]/90 backdrop-blur-md z-50 flex items-center px-4 justify-between border-b border-white/5">
+    <nav className="fixed top-0 left-0 right-0 h-12 bg-[#202125]/60 backdrop-blur-sm z-50 flex items-center px-4 justify-between border-b border-white/5">
       <div className="flex items-center gap-4">
         <button onClick={onMenuClick} className="p-2 hover:bg-white/10 rounded-full transition-colors">
           <Menu className="w-6 h-6" />
         </button>
-        <Link to="/" className="flex items-center">
-          <span className="text-2xl font-bold italic tracking-tighter">ani<span className="text-primary italic">watch</span></span>
+        <Link to={isMovieMode ? '/movie' : '/'} className="flex items-center">
+          <span className="text-2xl font-bold italic tracking-tighter">ignis<span className="text-primary italic">play</span></span>
         </Link>
       </div>
 
