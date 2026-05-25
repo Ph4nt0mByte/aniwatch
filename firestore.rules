@@ -38,6 +38,16 @@ service cloud.firestore {
         allow delete: if isOwner(userId);
       }
 
+      // Movie/TV Watch History
+      match /movieWatchHistory/{movieId} {
+        function isValidMovieHistory(data) {
+          return data.movieId is string && data.title is string && data.mediaType is string;
+        }
+        allow list, get: if isOwner(userId);
+        allow create, update: if isOwner(userId) && isValidMovieHistory(request.resource.data);
+        allow delete: if isOwner(userId);
+      }
+
       // Watch List
       match /watchList/{animeId} {
         function isValidWatchList(data) {
