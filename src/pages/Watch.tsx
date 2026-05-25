@@ -49,9 +49,16 @@ export default function Watch() {
       setLoading(true);
       setError(null);
       try {
-        const [details, eps, recs, rels] = await Promise.all([
+        // Fetch details + episodes first (priority), then recs + relations after a delay
+        // to avoid hitting Jikan's ~3 req/s rate limit which causes empty episode lists
+        const [details, eps] = await Promise.all([
           jikanApi.getAnimeById(id),
           jikanApi.getEpisodes(id),
+        ]);
+
+        await new Promise(resolve => setTimeout(resolve, 400));
+
+        const [recs, rels] = await Promise.all([
           jikanApi.getRecommendations(id),
           jikanApi.getRelations(id)
         ]);
@@ -60,8 +67,31 @@ export default function Watch() {
           if (!details?.data) {
             setError('Anime data not found.');
           } else {
-            setAnime(details.data);
-            setEpisodes(eps.data || []);
+            const animeData = { ...details.data };
+            if (animeData.duration === '5 min per ep') {
+              animeData.episodes = Math.ceil((animeData.episodes || 120) / 5);
+            }
+            setAnime(animeData);
+
+            let allEpisodes = eps.data || [];
+            let currentPage = 1;
+            let hasNext = eps.pagination?.has_next_page || false;
+
+            while (hasNext && isMounted) {
+              currentPage++;
+              await new Promise(resolve => setTimeout(resolve, 500));
+              const nextEps = await jikanApi.getEpisodes(id, currentPage);
+              if (nextEps?.data) {
+                allEpisodes = [...allEpisodes, ...nextEps.data];
+              }
+              hasNext = nextEps.pagination?.has_next_page || false;
+            }
+
+            let finalEps = allEpisodes;
+            if (details.data.duration === '5 min per ep') {
+              finalEps = finalEps.filter((_: any, idx: number) => idx % 5 === 0);
+            }
+            setEpisodes(finalEps);
             setRecommendations(recs.data || []);
             
             const initialRels = rels.data || [];

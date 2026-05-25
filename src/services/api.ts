@@ -7,7 +7,7 @@ export const jikanApi = {
   getUpcoming: () => fetch(`${JIKAN_API_URL}/anime?status=upcoming`).then(res => res.json()),
   searchAnime: (query: string) => fetch(`${JIKAN_API_URL}/anime?q=${query}`).then(res => res.json()),
   getAnimeById: (id: string | number) => fetch(`${JIKAN_API_URL}/anime/${id}/full`).then(res => res.json()),
-  getEpisodes: (id: string | number) => fetch(`${JIKAN_API_URL}/anime/${id}/episodes`).then(res => res.json()),
+  getEpisodes: (id: string | number, page = 1) => fetch(`${JIKAN_API_URL}/anime/${id}/episodes?page=${page}`).then(res => res.json()),
   getRecommendations: (id: string | number) => fetch(`${JIKAN_API_URL}/anime/${id}/recommendations`).then(res => res.json()),
   getRelations: (id: string | number) => fetch(`${JIKAN_API_URL}/anime/${id}/relations`).then(res => res.json()),
 };
