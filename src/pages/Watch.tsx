@@ -297,7 +297,7 @@ export default function Watch() {
       if (event.origin !== 'https://megaplay.buzz') return;
       let data: any;
       try { data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data; } catch { return; }
-      if (data?.channel !== 'megacloud' || data.event !== 'time') return;
+      if (data?.channel !== 'megacloud' || data.event !== 'time' || typeof data.time !== 'number' || data.time === 0) return;
 
       const { time } = JSON.parse(saved);
       if (typeof time === 'number' && time > 3 && iframeRef.current?.contentWindow) {
