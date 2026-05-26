@@ -45,7 +45,11 @@ export default function Home() {
 
   return (
     <div className="pb-12">
-      <Spotlight animeList={topAnime} />
+      <div className="relative">
+        <Spotlight animeList={topAnime} />
+      </div>
+      {/* Glow below carousel - outside, in normal flow */}
+      <div className="w-3/4 h-8 bg-primary/40 blur-3xl rounded-full mx-auto -mt-4 pointer-events-none" />
       
       <div className="max-w-7xl mx-auto px-4 space-y-16">
         {/* Trending Section */}

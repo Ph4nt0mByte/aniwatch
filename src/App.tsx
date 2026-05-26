@@ -35,7 +35,7 @@ function AppContent() {
   }
 
   return (
-    <div className="min-h-screen bg-bg-dark text-white flex flex-col">
+    <div className="min-h-screen bg-bg-dark text-white flex flex-col relative z-[1]">
       <Navbar onMenuClick={() => setSidebarOpen(!isSidebarOpen)} />
       <Sidebar isOpen={isSidebarOpen} onClose={() => setSidebarOpen(false)} />
       

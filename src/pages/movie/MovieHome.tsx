@@ -110,7 +110,8 @@ export default function MovieHome() {
     <div className="bg-[#202125] min-h-screen text-white pb-16">
       {/* Spotlight Carousel */}
       {spotlight && (
-        <div className="relative w-full h-[62vh] md:h-[78vh] overflow-hidden mb-12 border-b border-white/5">
+        <>
+        <div className="relative w-full h-[62vh] md:h-[78vh] overflow-hidden mb-0 border-b border-white/5">
           <AnimatePresence mode="wait">
             <motion.div
               key={spotlight.id}
@@ -148,13 +149,13 @@ export default function MovieHome() {
               <div className="flex items-center gap-4">
                 <button
                   onClick={() => navigate(`/movie/watch/${spotlight.id}${spotlight.media_type === 'tv' ? '/season/1/episode/1' : ''}?type=${spotlight.media_type}`)}
-                  className="bg-primary text-black px-6 py-2.5 rounded font-black hover:brightness-110 transition-all flex items-center gap-2 cursor-pointer shadow-md"
+                  className="bg-primary text-black px-6 py-2.5 rounded-full font-black hover:brightness-110 transition-all flex items-center gap-2 cursor-pointer shadow-md"
                 >
                   <Play className="w-4 h-4 fill-current" /> Watch Now
                 </button>
                 <button
                   onClick={() => handleCardClick(spotlight)}
-                  className="bg-white/10 hover:bg-white/20 text-white px-6 py-2.5 rounded font-black transition-all flex items-center gap-2 cursor-pointer backdrop-blur border border-white/5"
+                  className="bg-white/10 hover:bg-white/20 text-white px-6 py-2.5 rounded-full font-black transition-all flex items-center gap-2 cursor-pointer backdrop-blur border border-white/5"
                 >
                   <Info className="w-4 h-4" /> Info Details
                 </button>
@@ -178,6 +179,9 @@ export default function MovieHome() {
             </button>
           </div>
         </div>
+        {/* Glow below carousel */}
+        <div className="w-3/4 h-8 bg-primary/40 blur-3xl rounded-full mx-auto mb-12 pointer-events-none" />
+        </>
       )}
 
       {/* Main categories container */}

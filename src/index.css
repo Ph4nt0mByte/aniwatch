@@ -15,6 +15,32 @@ body {
   font-family: var(--font-sans);
 }
 
+/* Ambient corner glows matching the reference design */
+body::before,
+body::after {
+  content: '';
+  position: fixed;
+  width: 600px;
+  height: 600px;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 0;
+  filter: blur(120px);
+  opacity: 0.18;
+}
+
+body::before {
+  background: #ff0d29;
+  top: -200px;
+  left: -200px;
+}
+
+body::after {
+  background: #ff0d29;
+  bottom: -200px;
+  right: -200px;
+}
+
 ::selection {
   background-color: var(--color-primary);
   color: black;

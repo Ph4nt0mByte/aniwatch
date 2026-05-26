@@ -33,7 +33,10 @@ export default function Navbar({ onMenuClick }: NavbarProps) {
 
   return (
     <nav className="fixed top-0 left-0 right-0 h-12 bg-[#202125]/60 backdrop-blur-sm z-50 flex items-center px-4 justify-between border-b border-white/5">
-      <div className="flex items-center gap-4">
+      {/* Bottom glow bleeding into page content */}
+      <div className="absolute bottom-0 left-0 right-0 h-8 bg-red-600/15 blur-md -z-10 translate-y-1/2 pointer-events-none" />
+      {/* Left: menu + brand */}
+      <div className="flex items-center gap-4 shrink-0">
         <button onClick={onMenuClick} className="p-2 hover:bg-white/10 rounded-full transition-colors">
           <Menu className="w-6 h-6" />
         </button>
@@ -42,41 +45,43 @@ export default function Navbar({ onMenuClick }: NavbarProps) {
         </Link>
       </div>
 
-      <div className="hidden md:flex flex-1 max-w-xl mx-8 relative items-center gap-4">
-        <form onSubmit={handleSearch} className="flex-1 relative">
-          <input
-            type="text"
-            placeholder="Search anime..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            onFocus={() => setIsSearchFocused(true)}
-            onBlur={() => setTimeout(() => setIsSearchFocused(false), 200)}
-            className="w-full bg-white/10 border border-transparent focus:border-primary/50 rounded-md py-2 px-4 pl-10 outline-none transition-all placeholder:text-gray-500"
-          />
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-        </form>
+      {/* Right: search + toggle + avatar */}
+      <div className="flex items-center gap-3">
+        <div className="hidden md:flex items-center gap-3">
+          <form onSubmit={handleSearch} className="relative">
+            <input
+              type="text"
+              placeholder={isMovieMode ? 'Search movies...' : 'Search anime...'}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onFocus={() => setIsSearchFocused(true)}
+              onBlur={() => setTimeout(() => setIsSearchFocused(false), 200)}
+              className="w-48 lg:w-64 bg-white/10 border border-transparent focus:border-primary/50 rounded-full py-1.5 px-4 pl-9 text-xs outline-none transition-all placeholder:text-gray-500"
+            />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500" />
+          </form>
 
-        <div className="flex bg-white/5 rounded-lg border border-white/5 p-0.5 shrink-0">
-          <button
-            onClick={() => navigate('/')}
-            className={`px-3.5 py-1 rounded-md text-[10px] font-black tracking-wider transition-all cursor-pointer ${!isMovieMode ? 'bg-primary text-black' : 'text-gray-500 hover:text-white'}`}
-          >
-            ANIME
-          </button>
-          <button
-            onClick={() => navigate('/movie')}
-            className={`px-3.5 py-1 rounded-md text-[10px] font-black tracking-wider transition-all cursor-pointer ${isMovieMode ? 'bg-primary text-black' : 'text-gray-500 hover:text-white'}`}
-          >
-            MOVIE
-          </button>
+          <div className="flex bg-white/5 rounded-full border border-white/5 p-0.5 shrink-0">
+            <button
+              onClick={() => navigate('/')}
+              className={`px-3 py-1 rounded-full text-[10px] font-black tracking-wider transition-all cursor-pointer ${!isMovieMode ? 'bg-primary text-black' : 'text-gray-500 hover:text-white'}`}
+            >
+              ANIME
+            </button>
+            <button
+              onClick={() => navigate('/movie')}
+              className={`px-3 py-1 rounded-full text-[10px] font-black tracking-wider transition-all cursor-pointer ${isMovieMode ? 'bg-primary text-black' : 'text-gray-500 hover:text-white'}`}
+            >
+              MOVIE
+            </button>
+          </div>
         </div>
-      </div>
-      <div className="flex items-center gap-2 md:gap-4">
+
         {user ? (
           <div className="relative">
             <button
               onClick={() => setIsProfileOpen(!isProfileOpen)}
-              className="w-10 h-10 rounded-full overflow-hidden border-2 border-transparent hover:border-primary transition-all"
+              className="w-8 h-8 rounded-full overflow-hidden border-2 border-transparent hover:border-primary transition-all"
             >
               <img src={user.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.uid}`} alt="Profile" />
             </button>
