@@ -3,10 +3,10 @@
 
 @theme {
   --font-sans: "Poppins", ui-sans-serif, system-ui, sans-serif;
-  --color-primary: #ffdd95;
-  --color-bg-dark: #202125;
-  --color-bg-card: #2f3033;
-  --color-text-secondary: #aaaaaa;
+  --color-primary: #ff0d29;
+  --color-bg-dark: #080808;
+  --color-bg-card: #15161a;
+  --color-text-secondary: #9ca3af;
 }
 
 body {
@@ -26,4 +26,8 @@ body {
   &::-webkit-scrollbar {
     display: none;
   }
+}
+
+@utility movie-glow-radial {
+  background: radial-gradient(circle at 50% 20%, rgba(255, 13, 41, 0.1) 0%, transparent 70%);
 }

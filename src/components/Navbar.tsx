@@ -57,13 +57,13 @@ export default function Navbar({ onMenuClick }: NavbarProps) {
         </form>
 
         <div className="flex bg-white/5 rounded-lg border border-white/5 p-0.5 shrink-0">
-          <button 
+          <button
             onClick={() => navigate('/')}
             className={`px-3.5 py-1 rounded-md text-[10px] font-black tracking-wider transition-all cursor-pointer ${!isMovieMode ? 'bg-primary text-black' : 'text-gray-500 hover:text-white'}`}
           >
             ANIME
           </button>
-          <button 
+          <button
             onClick={() => navigate('/movie')}
             className={`px-3.5 py-1 rounded-md text-[10px] font-black tracking-wider transition-all cursor-pointer ${isMovieMode ? 'bg-primary text-black' : 'text-gray-500 hover:text-white'}`}
           >
@@ -71,17 +71,10 @@ export default function Navbar({ onMenuClick }: NavbarProps) {
           </button>
         </div>
       </div>
-
       <div className="flex items-center gap-2 md:gap-4">
-        <div className="hidden lg:flex items-center gap-3 text-gray-400 mr-4">
-          <MessageCircle className="w-5 h-5 hover:text-white cursor-pointer" />
-          <Send className="w-5 h-5 hover:text-white cursor-pointer" />
-          <Radio className="w-5 h-5 hover:text-white cursor-pointer" />
-        </div>
-
         {user ? (
           <div className="relative">
-            <button 
+            <button
               onClick={() => setIsProfileOpen(!isProfileOpen)}
               className="w-10 h-10 rounded-full overflow-hidden border-2 border-transparent hover:border-primary transition-all"
             >

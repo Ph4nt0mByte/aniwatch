@@ -77,9 +77,9 @@ export default function MovieHome() {
         whileHover={{ scale: 1.02 }}
       >
         <div className="relative aspect-[2/3] w-full rounded-lg overflow-hidden bg-white/5 border border-white/10 shadow-md">
-          <img 
-            src={tmdbApi.getImageUrl(item.poster_path, 'w500')} 
-            alt={item.title || item.name} 
+          <img
+            src={tmdbApi.getImageUrl(item.poster_path, 'w500')}
+            alt={item.title || item.name}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
             loading="lazy"
           />
@@ -120,8 +120,8 @@ export default function MovieHome() {
               transition={{ duration: 0.6 }}
               className="absolute inset-0"
             >
-              <img 
-                src={tmdbApi.getImageUrl(spotlight.backdrop_path, 'original')} 
+              <img
+                src={tmdbApi.getImageUrl(spotlight.backdrop_path, 'original')}
                 alt={spotlight.title || spotlight.name}
                 className="w-full h-full object-cover"
               />
@@ -146,13 +146,13 @@ export default function MovieHome() {
                 {spotlight.overview}
               </p>
               <div className="flex items-center gap-4">
-                <button 
+                <button
                   onClick={() => navigate(`/movie/watch/${spotlight.id}${spotlight.media_type === 'tv' ? '/season/1/episode/1' : ''}?type=${spotlight.media_type}`)}
                   className="bg-primary text-black px-6 py-2.5 rounded font-black hover:brightness-110 transition-all flex items-center gap-2 cursor-pointer shadow-md"
                 >
                   <Play className="w-4 h-4 fill-current" /> Watch Now
                 </button>
-                <button 
+                <button
                   onClick={() => handleCardClick(spotlight)}
                   className="bg-white/10 hover:bg-white/20 text-white px-6 py-2.5 rounded font-black transition-all flex items-center gap-2 cursor-pointer backdrop-blur border border-white/5"
                 >
