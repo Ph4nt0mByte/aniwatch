@@ -111,7 +111,7 @@ export default function MovieHome() {
       {/* Spotlight Carousel */}
       {spotlight && (
         <>
-        <div className="relative w-full h-[62vh] md:h-[78vh] overflow-hidden mb-0 border-b border-white/5">
+        <div className="relative w-full h-[500px] md:h-[680px] overflow-hidden mb-0 border-b border-white/5">
           <AnimatePresence mode="wait">
             <motion.div
               key={spotlight.id}
