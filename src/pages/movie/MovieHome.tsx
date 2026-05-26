@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { tmdbApi, TMDBMovieOrTV } from '../../services/tmdb';
 import { Play, TrendingUp, Film, Tv, Star, Info, ChevronLeft, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -12,6 +12,7 @@ export default function MovieHome() {
   const [spotlightIndex, setSpotlightIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+  const spotlightIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const moviesRef = useRef<HTMLDivElement>(null);
   const tvRef = useRef<HTMLDivElement>(null);
@@ -20,6 +21,20 @@ export default function MovieHome() {
   const scroll = (ref: React.RefObject<HTMLDivElement | null>, dir: 'left' | 'right') => {
     ref.current?.scrollBy({ left: dir === 'left' ? -600 : 600, behavior: 'smooth' });
   };
+
+  const resetSpotlightTimer = useCallback((len: number) => {
+    if (spotlightIntervalRef.current) clearInterval(spotlightIntervalRef.current);
+    spotlightIntervalRef.current = setInterval(() => {
+      setSpotlightIndex((prev) => (prev + 1) % len);
+    }, 7000);
+  }, []);
+
+  const goSpotlight = useCallback((dir: 'prev' | 'next', len: number) => {
+    setSpotlightIndex((prev) =>
+      dir === 'next' ? (prev + 1) % len : (prev - 1 + len) % len
+    );
+    resetSpotlightTimer(len);
+  }, [resetSpotlightTimer]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -46,11 +61,9 @@ export default function MovieHome() {
   // Auto-rotate spotlight carousel every 7 seconds
   useEffect(() => {
     if (trending.length === 0) return;
-    const interval = setInterval(() => {
-      setSpotlightIndex((prev) => (prev + 1) % trending.length);
-    }, 7000);
-    return () => clearInterval(interval);
-  }, [trending]);
+    resetSpotlightTimer(trending.length);
+    return () => { if (spotlightIntervalRef.current) clearInterval(spotlightIntervalRef.current); };
+  }, [trending.length, resetSpotlightTimer]);
 
   if (loading) {
     return (
@@ -111,7 +124,9 @@ export default function MovieHome() {
       {/* Spotlight Carousel */}
       {spotlight && (
         <>
-        <div className="relative w-full h-[500px] md:h-[680px] overflow-hidden mb-0 border-b border-white/5">
+        <div
+          className="relative w-full h-[500px] md:h-[680px] overflow-hidden mb-0 border-b border-white/5"
+        >
           <AnimatePresence mode="wait">
             <motion.div
               key={spotlight.id}
@@ -166,13 +181,13 @@ export default function MovieHome() {
           {/* Spotlight prev/next controls */}
           <div className="absolute bottom-12 right-4 md:right-12 flex gap-3 z-10">
             <button
-              onClick={() => setSpotlightIndex((prev) => (prev - 1 + trending.length) % trending.length)}
+              onClick={() => goSpotlight('prev', trending.length)}
               className="p-3 bg-white/5 hover:bg-primary hover:text-black rounded-lg transition-all border border-white/5 cursor-pointer"
             >
               <ChevronLeft className="w-6 h-6" />
             </button>
             <button
-              onClick={() => setSpotlightIndex((prev) => (prev + 1) % trending.length)}
+              onClick={() => goSpotlight('next', trending.length)}
               className="p-3 bg-white/5 hover:bg-primary hover:text-black rounded-lg transition-all border border-white/5 cursor-pointer"
             >
               <ChevronRight className="w-6 h-6" />

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { Play, Info, ChevronLeft, ChevronRight, Calendar, Clock } from 'lucide-react';
 import { Anime } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
@@ -13,20 +13,34 @@ export default function Spotlight({ animeList }: SpotlightProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const navigate = useNavigate();
   const { language } = useLanguage();
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  useEffect(() => {
-    const timer = setInterval(() => {
+  const resetTimer = useCallback(() => {
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    intervalRef.current = setInterval(() => {
       setCurrentIndex((prev) => (prev + 1) % animeList.length);
     }, 8000);
-    return () => clearInterval(timer);
   }, [animeList.length]);
 
-  const current = animeList[currentIndex];
+  useEffect(() => {
+    resetTimer();
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+  }, [resetTimer]);
 
+  const go = useCallback((dir: 'prev' | 'next') => {
+    setCurrentIndex((prev) =>
+      dir === 'next' ? (prev + 1) % animeList.length : (prev - 1 + animeList.length) % animeList.length
+    );
+    resetTimer();
+  }, [animeList.length, resetTimer]);
+
+  const current = animeList[currentIndex];
   if (!current) return null;
 
   return (
-    <div className="relative h-[500px] md:h-[680px] w-full overflow-hidden mb-12">
+    <div
+      className="relative h-[500px] md:h-[680px] w-full overflow-hidden mb-12"
+    >
       <AnimatePresence mode="wait">
         <motion.div
           key={current.mal_id}
@@ -103,13 +117,13 @@ export default function Spotlight({ animeList }: SpotlightProps) {
       {/* Controls */}
       <div className="absolute bottom-12 right-4 md:right-12 flex gap-3 z-10">
         <button 
-          onClick={() => setCurrentIndex((prev) => (prev - 1 + animeList.length) % animeList.length)}
+          onClick={() => go('prev')}
           className="p-3 bg-white/5 hover:bg-primary hover:text-black rounded-lg transition-all border border-white/5"
         >
           <ChevronLeft className="w-6 h-6" />
         </button>
         <button 
-          onClick={() => setCurrentIndex((prev) => (prev + 1) % animeList.length)}
+          onClick={() => go('next')}
           className="p-3 bg-white/5 hover:bg-primary hover:text-black rounded-lg transition-all border border-white/5"
         >
           <ChevronRight className="w-6 h-6" />
