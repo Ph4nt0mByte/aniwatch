@@ -134,22 +134,6 @@ export default function Watch() {
             if (isMounted) {
               setRelations(allRelations);
             }
-            
-            // Save progress to "Continue Watching"
-            if (user && details.data) {
-              const progressKey = `playback-${id}-${epNumber}`;
-              const saved = localStorage.getItem(progressKey);
-              let initialTime = 0;
-              let initialDuration = 0;
-              if (saved) {
-                try {
-                  const parsed = JSON.parse(saved);
-                  initialTime = parsed.time || 0;
-                  initialDuration = parsed.duration || 0;
-                } catch {}
-              }
-              saveProgress(details.data, epNumber, initialTime, initialDuration);
-            }
           }
         }
       } catch (err) {
@@ -164,7 +148,7 @@ export default function Watch() {
     window.scrollTo(0, 0);
 
     return () => { isMounted = false; };
-  }, [id, ep, user]);
+  }, [id, user]);
 
   // Fetch full details for relations (titles & posters)
   useEffect(() => {
@@ -213,6 +197,23 @@ export default function Watch() {
   };
 
   const [isWatchlisted, setIsWatchlisted] = useState(false);
+
+  // Save progress when episode changes without re-fetching everything
+  useEffect(() => {
+    if (!anime || !user) return;
+    const progressKey = `playback-${id}-${epNumber}`;
+    const saved = localStorage.getItem(progressKey);
+    let initialTime = 0;
+    let initialDuration = 0;
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        initialTime = parsed.time || 0;
+        initialDuration = parsed.duration || 0;
+      } catch {}
+    }
+    saveProgress(anime, epNumber, initialTime, initialDuration);
+  }, [epNumber]);
 
   useEffect(() => {
     if (!user || !id) return;
