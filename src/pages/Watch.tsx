@@ -287,6 +287,17 @@ export default function Watch() {
     return () => window.removeEventListener('message', handleMessage);
   }, [autoNext, epNumber, id, anime, navigate]);
 
+  // Update document title with anime title and episode number
+  useEffect(() => {
+    if (anime) {
+      const animeTitle = language === 'en' ? (anime.title_english || anime.title) : anime.title;
+      document.title = `${animeTitle} - Episode ${epNumber} | IgnisPlay`;
+    }
+    return () => {
+      document.title = 'IgnisPlay';
+    };
+  }, [anime, epNumber, language]);
+
   // Restore saved playback position
   const iframeRef = useRef<HTMLIFrameElement>(null);
   useEffect(() => {

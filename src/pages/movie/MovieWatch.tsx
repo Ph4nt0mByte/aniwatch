@@ -89,6 +89,20 @@ export default function MovieWatch() {
     saveMovieProgress();
   }, [user, details, id, currentSeason, currentEpisode, type]);
 
+  useEffect(() => {
+    if (details) {
+      const mediaTitle = details.title || details.name;
+      if (isMovie) {
+        document.title = `${mediaTitle} | IgnisPlay`;
+      } else {
+        document.title = `${mediaTitle} - Season ${currentSeason} Episode ${currentEpisode} | IgnisPlay`;
+      }
+    }
+    return () => {
+      document.title = 'IgnisPlay';
+    };
+  }, [details, isMovie, currentSeason, currentEpisode]);
+
   const handleSeasonChange = async (seasonNum: number) => {
     if (!id) return;
     navigate(`/movie/watch/${id}/season/${seasonNum}/episode/1?type=tv`);
@@ -130,7 +144,7 @@ export default function MovieWatch() {
           {!isMovie && (
             <>
               <ChevronRight className="w-3.5 h-3.5" />
-              <span className="text-primary font-black">S{currentSeason} : E{currentEpisode}</span>
+              <span className="text-primary font-black">Season {currentSeason} Episode {currentEpisode}</span>
             </>
           )}
         </div>
