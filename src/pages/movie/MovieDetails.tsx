@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { tmdbApi, TMDBDetails, TMDBEpisode } from '../../services/tmdb';
-import { Play, Star, Calendar, Clock, Film, Tv, ChevronRight } from 'lucide-react';
+import { Play, Star, Calendar, Clock, Film, Tv, ChevronRight, Plus } from 'lucide-react';
 import { motion } from 'motion/react';
+import { useAuth } from '../../contexts/AuthContext';
+import { db } from '../../lib/firebase';
+import { doc, setDoc, getDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 
 export default function MovieDetails() {
   const { id } = useParams<{ id: string }>();
@@ -13,7 +16,33 @@ export default function MovieDetails() {
   const [episodes, setEpisodes] = useState<TMDBEpisode[]>([]);
   const [episodesLoading, setEpisodesLoading] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [watchlisted, setWatchlisted] = useState(false);
   const navigate = useNavigate();
+  const { user } = useAuth();
+
+  const handleAddToWatchlist = async () => {
+    if (!user) return navigate('/auth');
+    if (!details) return;
+    const itemId = String(details.id);
+    const path = `users/${user.uid}/movieWatchlist/${itemId}`;
+    const next = !watchlisted;
+    setWatchlisted(next);
+    try {
+      if (next) {
+        await setDoc(doc(db, path), {
+          title: details.title || details.name || 'Unknown',
+          poster: tmdbApi.getImageUrl(details.poster_path, 'w500'),
+          mediaType: details.media_type,
+          addedAt: serverTimestamp()
+        });
+      } else {
+        await deleteDoc(doc(db, path));
+      }
+    } catch (error) {
+      setWatchlisted(watchlisted);
+      console.error('Failed to toggle watchlist:', error);
+    }
+  };
 
   useEffect(() => {
     if (!id) return;
@@ -35,6 +64,15 @@ export default function MovieDetails() {
     };
     fetchDetails();
   }, [id, type]);
+
+  useEffect(() => {
+    if (!user || !details) return;
+    const check = async () => {
+      const snap = await getDoc(doc(db, `users/${user.uid}/movieWatchlist/${details.id}`));
+      if (snap.exists()) setWatchlisted(true);
+    };
+    check();
+  }, [user, details]);
 
   const fetchSeasonEpisodes = async (showId: string | number, seasonNum: number) => {
     setEpisodesLoading(true);
@@ -96,6 +134,14 @@ export default function MovieDetails() {
             className="w-full mt-5 bg-primary hover:brightness-110 text-black py-3 rounded-xl font-black shadow-lg flex items-center justify-center gap-2 cursor-pointer transition-all"
           >
             <Play className="w-5 h-5 fill-current" /> Play Stream
+          </button>
+          <button
+            onClick={handleAddToWatchlist}
+            className={`w-full mt-3 py-3 rounded-xl font-bold shadow-lg flex items-center justify-center gap-2 cursor-pointer transition-all ${
+              watchlisted ? 'bg-primary/20 text-primary border border-primary/30' : 'bg-white/10 hover:bg-white/20 text-white'
+            }`}
+          >
+            <Plus className="w-5 h-5" /> {watchlisted ? 'Remove from List' : 'Add to List'}
           </button>
         </div>
 

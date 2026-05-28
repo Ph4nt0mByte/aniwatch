@@ -48,13 +48,23 @@ service cloud.firestore {
         allow delete: if isOwner(userId);
       }
 
-      // Watch List
-      match /watchList/{animeId} {
-        function isValidWatchList(data) {
-          return data.animeId is string && data.title is string;
+      // Anime Watch List
+      match /watchlist/{itemId} {
+        function isValidWatchlist(data) {
+          return data.title is string && data.poster is string && data.mediaType is string;
         }
         allow list, get: if isOwner(userId);
-        allow create, update: if isOwner(userId) && isValidWatchList(request.resource.data);
+        allow create, update: if isOwner(userId) && isValidWatchlist(request.resource.data);
+        allow delete: if isOwner(userId);
+      }
+
+      // Movie/TV Watch List
+      match /movieWatchlist/{itemId} {
+        function isValidMovieWatchlist(data) {
+          return data.title is string && data.poster is string && data.mediaType is string;
+        }
+        allow list, get: if isOwner(userId);
+        allow create, update: if isOwner(userId) && isValidMovieWatchlist(request.resource.data);
         allow delete: if isOwner(userId);
       }
     }

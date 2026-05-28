@@ -5,7 +5,7 @@ import { getEmbedUrls } from '../services/anikoto';
 import { Anime, Episode } from '../types';
 import { Play, List, Settings, Info, Volume2, Maximize, Bookmark, SkipBack, SkipForward, Sun, ChevronDown, ChevronRight, Search, Loader2 } from 'lucide-react';
 import { db } from '../lib/firebase';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, getDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { handleFirestoreError, OperationType } from '../lib/errorHandlers';
@@ -217,24 +217,34 @@ export default function Watch() {
 
   useEffect(() => {
     if (!user || !id) return;
-    // Check if in watchlist
-    // (Implementation omitted for brevity, adding a mock state toggle for now)
+    const check = async () => {
+      const snap = await getDoc(doc(db, `users/${user.uid}/watchlist/${id}`));
+      if (snap.exists()) setIsWatchlisted(true);
+    };
+    check();
   }, [user, id]);
 
   const toggleWatchlist = async () => {
     if (!user || !anime) return;
+    const next = !isWatchlisted;
+    setIsWatchlisted(next);
     try {
       const path = `users/${user.uid}/watchlist/${anime.mal_id}`;
-      await setDoc(doc(db, path), {
-        title: anime.title,
-        poster: anime.images.webp.large_image_url,
-        score: anime.score,
-        type: anime.type,
-        addedAt: serverTimestamp()
-      }, { merge: true });
-      setIsWatchlisted(true);
+      if (next) {
+        await setDoc(doc(db, path), {
+          title: anime.title,
+          poster: anime.images.webp.large_image_url,
+          score: anime.score,
+          type: anime.type,
+          mediaType: 'anime',
+          addedAt: serverTimestamp()
+        }, { merge: true });
+      } else {
+        await deleteDoc(doc(db, path));
+      }
     } catch (err) {
-      console.warn('Failed to add to watchlist:', err);
+      setIsWatchlisted(isWatchlisted);
+      console.warn('Failed to toggle watchlist:', err);
     }
   };
 

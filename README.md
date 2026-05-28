@@ -1,20 +1,39 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
+# IgnisPlay
 
-# Run and deploy your AI Studio app
+Anime & movie streaming web app built with React 19, TypeScript, Vite, Tailwind CSS v4, and Firebase.
 
-This contains everything you need to run your app locally.
+## Features
 
-View your app in AI Studio: https://ai.studio/apps/3d1a88a8-9149-4eb9-97f6-2fb3815b582f
+- Browse top, seasonal, and airing anime
+- Search anime/movies with live suggestions
+- Watch streaming via megaplay.buzz embeds
+- Google Sign-In via Firebase Auth
+- Continue Watching (Firestore-synced)
+- Watch List — bookmark anime and movies
+- EN/JP title toggle
+- Movie & TV show support via TMDB
 
 ## Run Locally
 
-**Prerequisites:**  Node.js
+**Prerequisites:** Node.js
 
+```bash
+npm install
+npm run dev
+```
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+## Commands
+
+| Command | Description |
+|---|---|
+| `npm run dev` | Start dev server (port 5000) |
+| `npm run build` | Production build → `dist/` |
+| `npm run preview` | Preview production build |
+| `npm run lint` | Type-check (`tsc --noEmit`) |
+
+## Stack
+
+- **Frontend:** React 19, TypeScript, Vite, Tailwind CSS v4, Framer Motion
+- **APIs:** Jikan (MyAnimeList), TMDB, megaplay.buzz
+- **Backend:** Express server (proxies API requests)
+- **Auth & Data:** Firebase Auth, Firestore

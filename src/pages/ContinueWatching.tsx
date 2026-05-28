@@ -7,11 +7,7 @@ import { handleFirestoreError, OperationType } from '../lib/errorHandlers';
 import { 
   Play, 
   Clock, 
-  User, 
   Heart, 
-  Bell, 
-  Settings, 
-  Link2,
   MessageSquare,
   Mic,
   Eye
@@ -88,9 +84,6 @@ export default function ContinueWatching() {
         <div className="max-w-7xl mx-auto px-4 text-center">
           <h2 className="text-4xl font-bold tracking-tight mb-8">Hi, {displayName}</h2>
           <div className="flex justify-center items-center gap-6 md:gap-10 border-b border-white/10 pb-3 max-w-3xl mx-auto text-sm text-text-secondary overflow-x-auto scrollbar-hide">
-            <button className="flex items-center gap-2 hover:text-white pb-3 transition-all cursor-pointer whitespace-nowrap">
-              <User className="w-4 h-4" /> Profile
-            </button>
             <button className="flex items-center gap-2 text-primary border-b-2 border-primary pb-3 font-semibold whitespace-nowrap">
               <Clock className="w-4 h-4" /> Continue Watching
             </button>
@@ -99,15 +92,6 @@ export default function ContinueWatching() {
               className="flex items-center gap-2 hover:text-white pb-3 transition-all cursor-pointer whitespace-nowrap"
             >
               <Heart className="w-4 h-4" /> Watch List
-            </button>
-            <button className="flex items-center gap-2 hover:text-white pb-3 transition-all cursor-pointer whitespace-nowrap">
-              <Bell className="w-4 h-4" /> Notification
-            </button>
-            <button className="flex items-center gap-2 hover:text-white pb-3 transition-all cursor-pointer whitespace-nowrap">
-              <Settings className="w-4 h-4" /> Settings
-            </button>
-            <button className="flex items-center gap-2 hover:text-white pb-3 transition-all cursor-pointer whitespace-nowrap">
-              <Link2 className="w-4 h-4" /> MAL
             </button>
           </div>
         </div>

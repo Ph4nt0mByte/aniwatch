@@ -12,19 +12,18 @@ import ContinueWatching from './pages/ContinueWatching';
 import AnimeDetails from './pages/AnimeDetails';
 import Watch from './pages/Watch';
 import Auth from './pages/Auth';
+import WatchList from './pages/WatchList';
 import Navbar from './components/Navbar';
-import Sidebar from './components/Sidebar';
-import { useState } from 'react';
 
 import MovieHome from './pages/movie/MovieHome';
 import MovieSearch from './pages/movie/MovieSearch';
 import MovieDetails from './pages/movie/MovieDetails';
 import MovieWatch from './pages/movie/MovieWatch';
 import MovieContinueWatching from './pages/movie/MovieContinueWatching';
+import MovieWatchList from './pages/movie/MovieWatchList';
 
 function AppContent() {
   const { user, loading } = useAuth();
-  const [isSidebarOpen, setSidebarOpen] = useState(false);
 
   if (loading) {
     return (
@@ -36,8 +35,7 @@ function AppContent() {
 
   return (
     <div className="min-h-screen bg-bg-dark text-white flex flex-col relative z-[1]">
-      <Navbar onMenuClick={() => setSidebarOpen(!isSidebarOpen)} />
-      <Sidebar isOpen={isSidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <Navbar />
       
       <main className="flex-grow pt-12">
         <Routes>
@@ -59,6 +57,14 @@ function AppContent() {
           <Route 
             path="/movie/continue-watching" 
             element={user ? <MovieContinueWatching /> : <Navigate to="/auth" />} 
+          />
+          <Route 
+            path="/watchlist" 
+            element={user ? <WatchList /> : <Navigate to="/auth" />} 
+          />
+          <Route 
+            path="/movie/watchlist" 
+            element={user ? <MovieWatchList /> : <Navigate to="/auth" />} 
           />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

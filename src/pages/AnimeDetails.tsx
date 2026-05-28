@@ -5,17 +5,20 @@ import { Anime, Episode } from '../types';
 import { Play, Star, Clock, Calendar, Bookmark, Share2, Plus, Info } from 'lucide-react';
 import { motion } from 'motion/react';
 import { db } from '../lib/firebase';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, getDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
+import { useLanguage } from '../contexts/LanguageContext';
 import { handleFirestoreError, OperationType } from '../lib/errorHandlers';
 
 export default function AnimeDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { language } = useLanguage();
   const [anime, setAnime] = useState<Anime | null>(null);
   const [episodes, setEpisodes] = useState<Episode[]>([]);
   const [loading, setLoading] = useState(true);
+  const [watchlisted, setWatchlisted] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -37,18 +40,34 @@ export default function AnimeDetails() {
     window.scrollTo(0, 0);
   }, [id]);
 
+  useEffect(() => {
+    if (!user || !anime) return;
+    const check = async () => {
+      const snap = await getDoc(doc(db, `users/${user.uid}/watchlist/${anime.mal_id}`));
+      if (snap.exists()) setWatchlisted(true);
+    };
+    check();
+  }, [user, anime]);
+
   const handleAddToWatchlist = async () => {
-    if (!user || !anime) return navigate('/auth');
-    const path = `users/${user.uid}/watchList/${anime.mal_id}`;
+    if (!user) return navigate('/auth');
+    if (!anime) return;
+    const path = `users/${user.uid}/watchlist/${anime.mal_id}`;
+    const next = !watchlisted;
+    setWatchlisted(next);
     try {
-      await setDoc(doc(db, path), {
-        animeId: String(anime.mal_id),
-        title: anime.title,
-        poster: anime.images.webp.large_image_url,
-        addedAt: serverTimestamp()
-      });
-      alert('Added to Watchlist!');
+      if (next) {
+        await setDoc(doc(db, path), {
+          title: anime.title,
+          poster: anime.images.webp.large_image_url,
+          mediaType: 'anime',
+          addedAt: serverTimestamp()
+        });
+      } else {
+        await deleteDoc(doc(db, path));
+      }
     } catch (error) {
+      setWatchlisted(watchlisted);
       handleFirestoreError(error, OperationType.WRITE, path);
     }
   };
@@ -76,7 +95,7 @@ export default function AnimeDetails() {
             animate={{ y: 0, opacity: 1 }}
             className="hidden md:block w-64 aspect-[2/3] rounded-xl overflow-hidden shadow-2xl border border-white/10"
           >
-            <img src={anime.images.webp.large_image_url} alt={anime.title} className="w-full h-full object-cover" />
+            <img src={anime.images.webp.large_image_url} alt={language === 'en' ? (anime.title_english || anime.title) : anime.title} className="w-full h-full object-cover" />
           </motion.div>
 
           <div className="flex-1 space-y-4">
@@ -85,10 +104,10 @@ export default function AnimeDetails() {
               <span>•</span>
               <span className="text-white">{anime.type}</span>
               <span>•</span>
-              <span className="text-white">{anime.title}</span>
+              <span className="text-white">{language === 'en' ? (anime.title_english || anime.title) : anime.title}</span>
             </div>
 
-            <h1 className="text-3xl md:text-5xl font-black">{anime.title}</h1>
+            <h1 className="text-3xl md:text-5xl font-black">{language === 'en' ? (anime.title_english || anime.title) : anime.title}</h1>
 
             <div className="flex flex-wrap items-center gap-4 text-sm font-medium">
               <span className="bg-white/10 px-2 py-0.5 rounded text-xs">PG-13</span>
@@ -106,9 +125,11 @@ export default function AnimeDetails() {
               </button>
               <button 
                 onClick={handleAddToWatchlist}
-                className="bg-white/10 hover:bg-white/20 px-6 py-3 rounded-full font-bold flex items-center gap-2 transition-all"
+                className={`px-6 py-3 rounded-full font-bold flex items-center gap-2 transition-all ${
+                  watchlisted ? 'bg-primary/20 text-primary border border-primary/30' : 'bg-white/10 hover:bg-white/20'
+                }`}
               >
-                <Plus className="w-5 h-5" /> Add to List
+                <Plus className="w-5 h-5" /> {watchlisted ? 'Remove from List' : 'Add to List'}
               </button>
             </div>
           </div>
