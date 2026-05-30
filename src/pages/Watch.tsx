@@ -38,6 +38,7 @@ export default function Watch() {
     ed?: { start: number; end: number };
   } | null>(null);
   const skipTriggered = useRef<{ op: boolean; ed: boolean }>({ op: false, ed: false });
+  const hasResumed = useRef(false);
 
   useEffect(() => {
     document.body.style.overflow = lightMode ? 'hidden' : '';
@@ -293,6 +294,33 @@ export default function Watch() {
         const currentTime = data.time;
         const now = Date.now();
 
+        // Perform initial restore/seek exactly once
+        if (!hasResumed.current && iframeRef.current?.contentWindow) {
+          hasResumed.current = true;
+          const saved = localStorage.getItem(progressKey);
+          if (saved) {
+            try {
+              const { time } = JSON.parse(saved);
+              if (typeof time === 'number' && time > 3) {
+                iframeRef.current.contentWindow.postMessage(
+                  JSON.stringify({ channel: 'megacloud', event: 'seek', time }),
+                  'https://megaplay.buzz'
+                );
+
+                if (skipTimes) {
+                  if (skipTimes.op && time >= skipTimes.op.start) {
+                    skipTriggered.current.op = true;
+                  }
+                  if (skipTimes.ed && time >= skipTimes.ed.start) {
+                    skipTriggered.current.ed = true;
+                  }
+                }
+                return; // Return early on seek to avoid conflicting progress updates
+              }
+            } catch {}
+          }
+        }
+
         // Save progress
         if (now - lastSaved > 5000) {
           lastSaved = now;
@@ -400,6 +428,7 @@ export default function Watch() {
     if (!anime?.mal_id || !epNumber) return;
     skipTriggered.current = { op: false, ed: false };
     setSkipTimes(null);
+    hasResumed.current = false; // Reset restore flag on episode/anime change
 
     fetch(`https://api.aniskip.com/v1/skip-times/${anime.mal_id}/${epNumber}?types=op&types=ed`)
       .then(res => res.json())
@@ -414,6 +443,24 @@ export default function Watch() {
             times.ed = { start: r.interval.start_time, end: r.interval.end_time };
           }
         });
+
+        // Pre-emptively disable skips if saved position is past segment starts
+        const progressKey = `playback-${id}-${epNumber}`;
+        const saved = localStorage.getItem(progressKey);
+        if (saved) {
+          try {
+            const { time } = JSON.parse(saved);
+            if (typeof time === 'number' && time > 3) {
+              if (times.op && time >= times.op.start) {
+                skipTriggered.current.op = true;
+              }
+              if (times.ed && time >= times.ed.start) {
+                skipTriggered.current.ed = true;
+              }
+            }
+          } catch {}
+        }
+
         setSkipTimes(times);
       })
       .catch(() => {});
