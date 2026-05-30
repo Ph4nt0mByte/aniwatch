@@ -267,16 +267,21 @@ export default function Watch() {
       if (data?.channel !== 'megacloud') return;
 
       // Save playback position from time/watching-log events
-      if ((data.event === 'time' || data.event === 'watching-log') && typeof data.time === 'number') {
+      const isTimeEvent = data.event === 'time' && typeof data.time === 'number';
+      const isWatchingLog = data.type === 'watching-log' && typeof data.currentTime === 'number';
+
+      if (isTimeEvent || isWatchingLog) {
+        const currentTime = isTimeEvent ? data.time : data.currentTime;
+        const currentDuration = data.duration;
         const now = Date.now();
         if (now - lastSaved > 5000) {
           lastSaved = now;
-          localStorage.setItem(progressKey, JSON.stringify({ time: data.time, duration: data.duration, savedAt: now }));
-          
+          localStorage.setItem(progressKey, JSON.stringify({ time: currentTime, duration: currentDuration, savedAt: now }));
+
           // Throttled Firestore save: every 15 seconds
           if (now - lastFirestoreSaved > 15000 && anime) {
             lastFirestoreSaved = now;
-            saveProgress(anime, epNumber, data.time, data.duration);
+            saveProgress(anime, epNumber, currentTime, currentDuration);
           }
         }
       }
@@ -313,19 +318,31 @@ export default function Watch() {
   useEffect(() => {
     const progressKey = `playback-${id}-${epNumber}`;
     const saved = localStorage.getItem(progressKey);
-    if (!saved || !iframeRef.current) return;
+    if (!saved) return;
+
+    let seekSent = false;
 
     const handleReady = (event: MessageEvent) => {
+      if (seekSent) return;
       if (event.origin !== 'https://megaplay.buzz') return;
       let data: any;
-      try { data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data; } catch { return; }
-      if (data?.channel !== 'megacloud' || data.event !== 'time' || typeof data.time !== 'number' || data.time === 0) return;
+      try {
+        data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+      } catch { return; }
+      if (data?.channel !== 'megacloud' || data.event !== 'time') return;
+      if (typeof data.time !== 'number' || data.time === 0) return;
 
-      const { time } = JSON.parse(saved);
-      if (typeof time === 'number' && time > 3 && iframeRef.current?.contentWindow) {
-        iframeRef.current.contentWindow.postMessage(JSON.stringify({ channel: 'megacloud', event: 'seek', time }), 'https://megaplay.buzz');
-      }
-      window.removeEventListener('message', handleReady);
+      try {
+        const { time } = JSON.parse(saved);
+        if (typeof time === 'number' && time > 3 && iframeRef.current?.contentWindow) {
+          seekSent = true;
+          iframeRef.current.contentWindow.postMessage(
+            JSON.stringify({ channel: 'megacloud', event: 'seek', time }),
+            'https://megaplay.buzz'
+          );
+          window.removeEventListener('message', handleReady);
+        }
+      } catch {}
     };
 
     window.addEventListener('message', handleReady);
@@ -343,7 +360,23 @@ export default function Watch() {
     getEmbedUrls(anime.mal_id, epNumber).then(result => {
       if (cancelled) return;
       if (result && (result.sub || result.dub)) {
-        setEmbedUrls(result);
+        // Read saved position and append #t= fragment so the player starts there natively
+        const progressKey = `playback-${id}-${epNumber}`;
+        const saved = localStorage.getItem(progressKey);
+        let startTime = 0;
+        if (saved) {
+          try {
+            const parsed = JSON.parse(saved);
+            if (typeof parsed.time === 'number' && parsed.time > 3) {
+              startTime = Math.floor(parsed.time);
+            }
+          } catch {}
+        }
+        const withTime = (url?: string) => url && startTime > 0 ? `${url}#t=${startTime}` : url;
+        setEmbedUrls({
+          sub: withTime(result.sub),
+          dub: withTime(result.dub),
+        });
         setStreamMode(result.sub ? 'sub' : 'dub');
       } else {
         setStreamError('This episode is not available on the streaming service yet.');
@@ -528,6 +561,22 @@ export default function Watch() {
                     allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
                     scrolling="no"
                     referrerPolicy="origin"
+                    onLoad={() => {
+                      const progressKey = `playback-${id}-${epNumber}`;
+                      const saved = localStorage.getItem(progressKey);
+                      if (!saved || !iframeRef.current?.contentWindow) return;
+                      try {
+                        const { time } = JSON.parse(saved);
+                        if (typeof time === 'number' && time > 3) {
+                          setTimeout(() => {
+                            iframeRef.current?.contentWindow?.postMessage(
+                              JSON.stringify({ channel: 'megacloud', event: 'seek', time }),
+                              'https://megaplay.buzz'
+                            );
+                          }, 2000);
+                        }
+                      } catch {}
+                    }}
                   />
                 )}
             </div>
