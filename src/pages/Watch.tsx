@@ -548,25 +548,50 @@ export default function Watch() {
               </div>
 
               <div className="max-h-[550px] overflow-y-auto scrollbar-hide py-2 px-1 space-y-1">
-                 {episodes.map((episode, idx) => (
-                    <button
-                       key={idx}
-                       onClick={() => navigate(`/watch/${id}/${idx + 1}`)}
-                       className={`w-full px-4 py-3 rounded-lg flex items-center gap-4 transition-all text-left group ${epNumber === idx + 1 ? 'bg-primary/20 border-l-4 border-primary' : 'hover:bg-white/5'}`}
-                    >
-                       <span className={`w-8 text-[11px] font-black ${epNumber === idx + 1 ? 'text-primary' : 'text-gray-500'}`}>
-                          {(idx + 1).toString().padStart(2, '0')}
-                       </span>
-                       <div className="flex-1 truncate">
-                          <p className={`text-xs font-bold truncate ${epNumber === idx + 1 ? 'text-primary' : 'text-gray-300 group-hover:text-primary transition-colors'}`}>
-                             {episode.title || `Episode ${idx + 1}`}
-                          </p>
-                       </div>
-                       {epNumber === idx + 1 && (
-                          <div className="w-2 h-2 bg-primary rounded-full animate-pulse shadow-[0_0_10px_rgba(255,221,149,0.5)]"></div>
-                       )}
-                    </button>
-                 ))}
+                 {episodes.map((episode, idx) => {
+                    const isCurrent = epNumber === idx + 1;
+                    const progressKey = `playback-${id}-${idx + 1}`;
+                    const savedProgress = localStorage.getItem(progressKey);
+                    let isWatched = false;
+                    if (savedProgress) {
+                       try {
+                          const parsed = JSON.parse(savedProgress);
+                          if (typeof parsed.time === 'number') {
+                             if (parsed.duration && parsed.duration > 0) {
+                                isWatched = (parsed.time / parsed.duration) > 0.85;
+                             } else {
+                                isWatched = parsed.time > 60;
+                             }
+                          }
+                       } catch {}
+                    }
+
+                    return (
+                       <button
+                          key={idx}
+                          onClick={() => navigate(`/watch/${id}/${idx + 1}`)}
+                          className={`w-full px-4 py-3 rounded-lg flex items-center gap-4 transition-all text-left group ${
+                             isCurrent 
+                                ? 'bg-primary/20 border-l-4 border-primary' 
+                                : isWatched 
+                                   ? 'opacity-40 hover:opacity-85 hover:bg-white/5' 
+                                   : 'hover:bg-white/5'
+                          }`}
+                       >
+                          <span className={`w-8 text-[11px] font-black ${isCurrent ? 'text-primary' : 'text-gray-500'}`}>
+                             {(idx + 1).toString().padStart(2, '0')}
+                          </span>
+                          <div className="flex-1 truncate">
+                             <p className={`text-xs font-bold truncate ${isCurrent ? 'text-primary' : 'text-gray-300 group-hover:text-primary transition-colors'}`}>
+                                {episode.title || `Episode ${idx + 1}`}
+                             </p>
+                          </div>
+                          {isCurrent && (
+                             <div className="w-2 h-2 bg-primary rounded-full animate-pulse shadow-[0_0_10px_rgba(255,221,149,0.5)]"></div>
+                          )}
+                       </button>
+                    );
+                 })}
               </div>
            </div>
            </div>
