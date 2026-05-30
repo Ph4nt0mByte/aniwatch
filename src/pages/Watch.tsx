@@ -21,7 +21,7 @@ export default function Watch() {
   const [loading, setLoading] = useState(true);
   const [autoPlay, setAutoPlay] = useState(true);
   const [autoNext, setAutoNext] = useState(true);
-  const [autoSkip, setAutoSkip] = useState(false);
+  const [autoSkip, setAutoSkip] = useState(() => localStorage.getItem('autoSkip') === 'true');
   const [error, setError] = useState<string | null>(null);
   const [recommendations, setRecommendations] = useState<any[]>([]);
   const [relations, setRelations] = useState<any[]>([]);
@@ -33,11 +33,20 @@ export default function Watch() {
   const [streamLoading, setStreamLoading] = useState(false);
   const [streamError, setStreamError] = useState<string | null>(null);
   const [lightMode, setLightMode] = useState(false);
+  const [skipTimes, setSkipTimes] = useState<{
+    op?: { start: number; end: number };
+    ed?: { start: number; end: number };
+  } | null>(null);
+  const skipTriggered = useRef<{ op: boolean; ed: boolean }>({ op: false, ed: false });
 
   useEffect(() => {
     document.body.style.overflow = lightMode ? 'hidden' : '';
     return () => { document.body.style.overflow = ''; };
   }, [lightMode]);
+
+  useEffect(() => {
+    localStorage.setItem('autoSkip', String(autoSkip));
+  }, [autoSkip]);
 
   const epNumber = parseInt(ep || '1');
 
@@ -264,24 +273,51 @@ export default function Watch() {
         return;
       }
 
-      if (data?.channel !== 'megacloud') return;
-
-      // Save playback position from time/watching-log events
-      const isTimeEvent = data.event === 'time' && typeof data.time === 'number';
-      const isWatchingLog = data.type === 'watching-log' && typeof data.currentTime === 'number';
-
-      if (isTimeEvent || isWatchingLog) {
-        const currentTime = isTimeEvent ? data.time : data.currentTime;
-        const currentDuration = data.duration;
+      // Handle watching-log separately — it has no channel field
+      if (data?.type === 'watching-log' && typeof data.currentTime === 'number') {
         const now = Date.now();
         if (now - lastSaved > 5000) {
           lastSaved = now;
-          localStorage.setItem(progressKey, JSON.stringify({ time: currentTime, duration: currentDuration, savedAt: now }));
-
-          // Throttled Firestore save: every 15 seconds
+          localStorage.setItem(progressKey, JSON.stringify({ time: data.currentTime, duration: data.duration, savedAt: now }));
           if (now - lastFirestoreSaved > 15000 && anime) {
             lastFirestoreSaved = now;
-            saveProgress(anime, epNumber, currentTime, currentDuration);
+            saveProgress(anime, epNumber, data.currentTime, data.duration);
+          }
+        }
+        return;
+      }
+
+      if (data?.channel !== 'megacloud') return;
+
+      if (data.event === 'time' && typeof data.time === 'number') {
+        const currentTime = data.time;
+        const now = Date.now();
+
+        // Save progress
+        if (now - lastSaved > 5000) {
+          lastSaved = now;
+          localStorage.setItem(progressKey, JSON.stringify({ time: currentTime, duration: data.duration, savedAt: now }));
+          if (now - lastFirestoreSaved > 15000 && anime) {
+            lastFirestoreSaved = now;
+            saveProgress(anime, epNumber, currentTime, data.duration);
+          }
+        }
+
+        // Autoskip intro and outro using AniSkip timestamps
+        if (autoSkip && skipTimes && iframeRef.current?.contentWindow) {
+          if (skipTimes.op && currentTime >= skipTimes.op.start && currentTime < skipTimes.op.end && !skipTriggered.current.op) {
+            skipTriggered.current.op = true;
+            iframeRef.current.contentWindow.postMessage(
+              JSON.stringify({ channel: 'megacloud', event: 'seek', time: skipTimes.op.end }),
+              'https://megaplay.buzz'
+            );
+          }
+          if (skipTimes.ed && currentTime >= skipTimes.ed.start && currentTime < skipTimes.ed.end && !skipTriggered.current.ed) {
+            skipTriggered.current.ed = true;
+            iframeRef.current.contentWindow.postMessage(
+              JSON.stringify({ channel: 'megacloud', event: 'seek', time: skipTimes.ed.end }),
+              'https://megaplay.buzz'
+            );
           }
         }
       }
@@ -300,7 +336,7 @@ export default function Watch() {
 
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, [autoNext, epNumber, id, anime, navigate]);
+  }, [autoNext, autoSkip, epNumber, id, anime, navigate, skipTimes]);
 
   // Update document title with anime title and episode number
   useEffect(() => {
@@ -313,41 +349,9 @@ export default function Watch() {
     };
   }, [anime, epNumber, language]);
 
-  // Restore saved playback position
+  // Restore saved playback position — handled via #t= fragment in the embed URL
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  useEffect(() => {
-    const progressKey = `playback-${id}-${epNumber}`;
-    const saved = localStorage.getItem(progressKey);
-    if (!saved) return;
 
-    let seekSent = false;
-
-    const handleReady = (event: MessageEvent) => {
-      if (seekSent) return;
-      if (event.origin !== 'https://megaplay.buzz') return;
-      let data: any;
-      try {
-        data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
-      } catch { return; }
-      if (data?.channel !== 'megacloud' || data.event !== 'time') return;
-      if (typeof data.time !== 'number' || data.time === 0) return;
-
-      try {
-        const { time } = JSON.parse(saved);
-        if (typeof time === 'number' && time > 3 && iframeRef.current?.contentWindow) {
-          seekSent = true;
-          iframeRef.current.contentWindow.postMessage(
-            JSON.stringify({ channel: 'megacloud', event: 'seek', time }),
-            'https://megaplay.buzz'
-          );
-          window.removeEventListener('message', handleReady);
-        }
-      } catch {}
-    };
-
-    window.addEventListener('message', handleReady);
-    return () => window.removeEventListener('message', handleReady);
-  }, [id, epNumber, embedUrls]);
   // Fetch embed URLs from Anikoto (proxied) when anime or episode changes
   useEffect(() => {
     if (!anime) return;
@@ -390,6 +394,29 @@ export default function Watch() {
     });
 
     return () => { cancelled = true; };
+  }, [anime?.mal_id, epNumber]);
+
+  useEffect(() => {
+    if (!anime?.mal_id || !epNumber) return;
+    skipTriggered.current = { op: false, ed: false };
+    setSkipTimes(null);
+
+    fetch(`https://api.aniskip.com/v1/skip-times/${anime.mal_id}/${epNumber}?types=op&types=ed`)
+      .then(res => res.json())
+      .then(data => {
+        if (!data.found) return;
+        const times: { op?: { start: number; end: number }; ed?: { start: number; end: number } } = {};
+        data.results.forEach((r: any) => {
+          if (r.skip_type === 'op') {
+            times.op = { start: r.interval.start_time, end: r.interval.end_time };
+          }
+          if (r.skip_type === 'ed') {
+            times.ed = { start: r.interval.start_time, end: r.interval.end_time };
+          }
+        });
+        setSkipTimes(times);
+      })
+      .catch(() => {});
   }, [anime?.mal_id, epNumber]);
 
   const playerContainerRef = useRef<HTMLDivElement>(null);
@@ -560,23 +587,6 @@ export default function Watch() {
                     frameBorder="0"
                     allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
                     scrolling="no"
-                    referrerPolicy="origin"
-                    onLoad={() => {
-                      const progressKey = `playback-${id}-${epNumber}`;
-                      const saved = localStorage.getItem(progressKey);
-                      if (!saved || !iframeRef.current?.contentWindow) return;
-                      try {
-                        const { time } = JSON.parse(saved);
-                        if (typeof time === 'number' && time > 3) {
-                          setTimeout(() => {
-                            iframeRef.current?.contentWindow?.postMessage(
-                              JSON.stringify({ channel: 'megacloud', event: 'seek', time }),
-                              'https://megaplay.buzz'
-                            );
-                          }, 2000);
-                        }
-                      } catch {}
-                    }}
                   />
                 )}
             </div>
