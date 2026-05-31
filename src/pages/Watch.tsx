@@ -551,20 +551,7 @@ export default function Watch() {
                  {episodes.map((episode, idx) => {
                     const isCurrent = epNumber === idx + 1;
                     const progressKey = `playback-${id}-${idx + 1}`;
-                    const savedProgress = localStorage.getItem(progressKey);
-                    let isWatched = false;
-                    if (savedProgress) {
-                       try {
-                          const parsed = JSON.parse(savedProgress);
-                          if (typeof parsed.time === 'number') {
-                             if (parsed.duration && parsed.duration > 0) {
-                                isWatched = (parsed.time / parsed.duration) > 0.85;
-                             } else {
-                                isWatched = parsed.time > 60;
-                             }
-                          }
-                       } catch {}
-                    }
+                    const isWatched = localStorage.getItem(progressKey) !== null;
 
                     return (
                        <button
