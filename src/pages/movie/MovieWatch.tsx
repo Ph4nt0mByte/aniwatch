@@ -21,7 +21,13 @@ export default function MovieWatch() {
   const currentEpisode = episode ? Number(episode) : 1;
   const isMovie = type === 'movie';
   const [lightMode, setLightMode] = useState(false);
+  const [server, setServer] = useState(0);
   const playerContainerRef = useRef<HTMLDivElement>(null);
+
+  const servers = [
+    { name: 'VidSrc.me', getUrl: (id: string) => isMovie ? `https://vidsrcme.ru/embed/movie/${id}` : `https://vidsrcme.ru/embed/tv/${id}/${currentSeason}/${currentEpisode}` },
+    { name: 'SuperEmbed', getUrl: (id: string) => isMovie ? `https://multiembed.mov/?video_id=${id}&tmdb=1` : `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${currentSeason}&e=${currentEpisode}` },
+  ];
 
   useEffect(() => {
     document.body.style.overflow = lightMode ? 'hidden' : '';
@@ -38,9 +44,7 @@ export default function MovieWatch() {
     }
   };
 
-  const embedUrl = isMovie
-    ? `https://vidsrcme.ru/embed/movie/${id}`
-    : `https://vidsrcme.ru/embed/tv/${id}/${currentSeason}/${currentEpisode}`;
+  const embedUrl = id ? servers[server].getUrl(id) : '';
 
   useEffect(() => {
     if (!id) return;
@@ -105,6 +109,7 @@ export default function MovieWatch() {
 
   const handleSeasonChange = async (seasonNum: number) => {
     if (!id) return;
+    setServer(0);
     navigate(`/movie/watch/${id}/season/${seasonNum}/episode/1?type=tv`);
   };
 
@@ -185,7 +190,7 @@ export default function MovieWatch() {
             </div>
 
             {/* Action Bar */}
-            <div className="bg-[#121315] border-x border-b border-white/5 p-2 px-4 flex items-center gap-4 text-[11px] font-bold text-gray-400 rounded-b-2xl mb-6">
+            <div className="bg-[#121315] border-x border-b border-white/5 p-2 px-4 flex flex-wrap items-center gap-3 text-[11px] font-bold text-gray-400 rounded-b-2xl mb-6">
               <button onClick={toggleFullscreen} className="flex items-center gap-1 hover:text-white transition-colors cursor-pointer">
                 <Maximize className="w-3.5 h-3.5" /> Expand
               </button>
@@ -193,6 +198,18 @@ export default function MovieWatch() {
                 {lightMode && <span className="w-1.5 h-1.5 bg-primary rounded-full" />}
                 <Sun className="w-3.5 h-3.5" /> Light
               </button>
+              <div className="flex items-center gap-2 border-l border-white/10 pl-3">
+                <span className="text-gray-500 uppercase tracking-wider shrink-0">Server:</span>
+                {servers.map((s, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setServer(i)}
+                    className={`px-2.5 py-1 rounded-md transition-all cursor-pointer whitespace-nowrap ${server === i ? 'bg-primary/20 text-primary border border-primary/30' : 'bg-white/5 hover:bg-white/10 border border-transparent'}`}
+                  >
+                    {s.name}
+                  </button>
+                ))}
+              </div>
               {!isMovie && (
                 <div className="flex items-center gap-3 border-l border-white/10 pl-4">
                   <button
