@@ -157,7 +157,7 @@ export default function MovieWatch() {
         {/* Player + Sidebar */}
         <div className="flex flex-col lg:flex-row gap-4">
           {/* Player */}
-          <div className="flex-1 min-w-0">
+          <div className={`${isMovie ? 'lg:max-w-[1050px] mx-auto' : 'flex-1'} min-w-0`}>
             <div
               ref={playerContainerRef}
               className={`bg-black overflow-hidden shadow-2xl border-x border-t border-white/5 ${lightMode ? 'fixed top-1/2 left-1/2 z-[70] rounded-none' : 'relative aspect-video w-full rounded-t-2xl'}`}
