@@ -201,7 +201,6 @@ export default function Watch() {
         duration,
         updatedAt: serverTimestamp()
       }, { merge: true });
-      setWatchedEpisodes(prev => new Set(prev).add(currentEp));
     } catch (err) {
       console.warn('Failed to save progress:', err);
     }
@@ -278,12 +277,30 @@ export default function Watch() {
       // Handle watching-log separately — it has no channel field
       if (data?.type === 'watching-log' && typeof data.currentTime === 'number') {
         const now = Date.now();
+        const currentTime = data.currentTime;
         if (now - lastSaved > 5000) {
           lastSaved = now;
-          localStorage.setItem(progressKey, JSON.stringify({ time: data.currentTime, duration: data.duration, savedAt: now }));
+          localStorage.setItem(progressKey, JSON.stringify({ time: currentTime, duration: data.duration, savedAt: now }));
           if (now - lastFirestoreSaved > 15000 && anime) {
             lastFirestoreSaved = now;
-            saveProgress(anime, epNumber, data.currentTime, data.duration);
+            saveProgress(anime, epNumber, currentTime, data.duration);
+          }
+        }
+        // Also run autoskip on watching-log events
+        if (autoSkip && skipTimes && iframeRef.current?.contentWindow) {
+          if (skipTimes.op && currentTime >= skipTimes.op.start && currentTime < skipTimes.op.end && !skipTriggered.current.op) {
+            skipTriggered.current.op = true;
+            iframeRef.current.contentWindow.postMessage(
+              JSON.stringify({ channel: 'megacloud', event: 'seek', time: skipTimes.op.end }),
+              'https://megaplay.buzz'
+            );
+          }
+          if (skipTimes.ed && currentTime >= skipTimes.ed.start && currentTime < skipTimes.ed.end && !skipTriggered.current.ed) {
+            skipTriggered.current.ed = true;
+            iframeRef.current.contentWindow.postMessage(
+              JSON.stringify({ channel: 'megacloud', event: 'seek', time: skipTimes.ed.end }),
+              'https://megaplay.buzz'
+            );
           }
         }
         return;
@@ -381,7 +398,7 @@ export default function Watch() {
   // Restore saved playback position — handled via #t= fragment in the embed URL
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
-  // Fetch embed URLs from Anikoto (proxied) when anime or episode changes
+  // Fetch embed URLs and AniSkip times in parallel before iframe loads
   useEffect(() => {
     if (!anime) return;
     let cancelled = false;
@@ -389,11 +406,41 @@ export default function Watch() {
     setStreamLoading(true);
     setStreamError(null);
     setEmbedUrls(null);
+    skipTriggered.current = { op: false, ed: false };
+    setSkipTimes(null);
+    hasResumed.current = false;
 
-    getEmbedUrls(anime.mal_id, epNumber).then(result => {
+    Promise.all([
+      getEmbedUrls(anime.mal_id, epNumber),
+      fetch(`https://api.aniskip.com/v1/skip-times/${anime.mal_id}/${epNumber}?types=op&types=ed`)
+        .then(res => res.json())
+        .catch(() => null)
+    ]).then(([result, skipData]) => {
       if (cancelled) return;
+
+      // Process skip times
+      if (skipData?.found) {
+        const times: { op?: { start: number; end: number }; ed?: { start: number; end: number } } = {};
+        skipData.results.forEach((r: any) => {
+          if (r.skip_type === 'op') times.op = { start: r.interval.start_time, end: r.interval.end_time };
+          if (r.skip_type === 'ed') times.ed = { start: r.interval.start_time, end: r.interval.end_time };
+        });
+        const progressKey = `playback-${id}-${epNumber}`;
+        const saved = localStorage.getItem(progressKey);
+        if (saved) {
+          try {
+            const { time } = JSON.parse(saved);
+            if (typeof time === 'number' && time > 3) {
+              if (times.op && time >= times.op.start) skipTriggered.current.op = true;
+              if (times.ed && time >= times.ed.start) skipTriggered.current.ed = true;
+            }
+          } catch {}
+        }
+        setSkipTimes(times);
+      }
+
+      // Process embed URLs
       if (result && (result.sub || result.dub)) {
-        // Read saved position and append #t= fragment so the player starts there natively
         const progressKey = `playback-${id}-${epNumber}`;
         const saved = localStorage.getItem(progressKey);
         let startTime = 0;
@@ -406,10 +453,7 @@ export default function Watch() {
           } catch {}
         }
         const withTime = (url?: string) => url && startTime > 0 ? `${url}#t=${startTime}` : url;
-        setEmbedUrls({
-          sub: withTime(result.sub),
-          dub: withTime(result.dub),
-        });
+        setEmbedUrls({ sub: withTime(result.sub), dub: withTime(result.dub) });
         setStreamMode(result.sub ? 'sub' : 'dub');
       } else {
         setStreamError('This episode is not available on the streaming service yet.');
@@ -423,48 +467,6 @@ export default function Watch() {
     });
 
     return () => { cancelled = true; };
-  }, [anime?.mal_id, epNumber]);
-
-  useEffect(() => {
-    if (!anime?.mal_id || !epNumber) return;
-    skipTriggered.current = { op: false, ed: false };
-    setSkipTimes(null);
-    hasResumed.current = false; // Reset restore flag on episode/anime change
-
-    fetch(`https://api.aniskip.com/v2/skip-times/${anime.mal_id}/${epNumber}?types[]=op&types[]=ed&episode_length=0`)
-      .then(res => res.json())
-      .then(data => {
-        if (!data.found) return;
-        const times: { op?: { start: number; end: number }; ed?: { start: number; end: number } } = {};
-        data.results.forEach((r: any) => {
-          if (r.skip_type === 'op') {
-            times.op = { start: r.interval.start_time, end: r.interval.end_time };
-          }
-          if (r.skip_type === 'ed') {
-            times.ed = { start: r.interval.start_time, end: r.interval.end_time };
-          }
-        });
-
-        // Pre-emptively disable skips if saved position is past segment starts
-        const progressKey = `playback-${id}-${epNumber}`;
-        const saved = localStorage.getItem(progressKey);
-        if (saved) {
-          try {
-            const { time } = JSON.parse(saved);
-            if (typeof time === 'number' && time > 3) {
-              if (times.op && time >= times.op.start) {
-                skipTriggered.current.op = true;
-              }
-              if (times.ed && time >= times.ed.start) {
-                skipTriggered.current.ed = true;
-              }
-            }
-          } catch {}
-        }
-
-        setSkipTimes(times);
-      })
-      .catch(() => {});
   }, [anime?.mal_id, epNumber]);
 
   const playerContainerRef = useRef<HTMLDivElement>(null);
