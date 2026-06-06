@@ -1,12 +1,10 @@
-import { Search, MessageCircle, Send, Radio, User, LogOut, Settings, History, Bookmark, Loader2 } from 'lucide-react';
+import { Search, MessageCircle, Send, Radio, User, LogOut, Settings, History, Bookmark } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { logout } from '../lib/firebase';
 import { motion, AnimatePresence } from 'motion/react';
-import { jikanApi } from '../services/api';
-import { tmdbApi } from '../services/tmdb';
 
 export default function Navbar() {
   const [isSearchFocused, setIsSearchFocused] = useState(false);
@@ -19,8 +17,6 @@ export default function Navbar() {
   const isMovieMode = location.pathname.startsWith('/movie');
   const profileRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLDivElement>(null);
-  const [suggestions, setSuggestions] = useState<any[]>([]);
-  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
 
   useEffect(() => {
     if (!isProfileOpen) return;
@@ -33,61 +29,14 @@ export default function Navbar() {
     return () => document.removeEventListener('mousedown', handleClick);
   }, [isProfileOpen]);
 
-  useEffect(() => {
-    if (searchQuery.trim().length < 2) {
-      setSuggestions([]);
-      return;
-    }
-    const timer = setTimeout(async () => {
-      setSuggestionsLoading(true);
-      try {
-        if (isMovieMode) {
-          const data = await tmdbApi.searchMulti(searchQuery);
-          setSuggestions(data.slice(0, 6));
-        } else {
-          const data = await jikanApi.searchAnime(searchQuery);
-          setSuggestions(data.data?.slice(0, 6) || []);
-        }
-      } catch {
-        setSuggestions([]);
-      } finally {
-        setSuggestionsLoading(false);
-      }
-    }, 400);
-    return () => clearTimeout(timer);
-  }, [searchQuery, isMovieMode]);
-
-  useEffect(() => {
-    if (!suggestions.length && !suggestionsLoading) return;
-    const handleClick = (e: MouseEvent) => {
-      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
-        setSuggestions([]);
-      }
-    };
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, [suggestions, suggestionsLoading]);
-
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchQuery.trim()) {
-      setSuggestions([]);
       if (isMovieMode) {
         navigate(`/movie/search?keyword=${encodeURIComponent(searchQuery)}`);
       } else {
         navigate(`/search?keyword=${encodeURIComponent(searchQuery)}`);
       }
-    }
-  };
-
-  const handleSuggestionClick = (item: any) => {
-    setSuggestions([]);
-    setSearchQuery('');
-    if (isMovieMode) {
-      const mediaType = item.media_type || 'movie';
-      navigate(`/movie/details/${item.id}?type=${mediaType}`);
-    } else {
-      navigate(`/anime/${item.mal_id}`);
     }
   };
 
@@ -118,45 +67,6 @@ export default function Navbar() {
               />
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500" />
             </form>
-            <AnimatePresence>
-              {(suggestions.length > 0 || suggestionsLoading) && (
-                <motion.div
-                  initial={{ opacity: 0, y: -4 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -4 }}
-                  className="absolute top-full mt-2 w-full bg-[#2f3033] rounded-xl shadow-2xl border border-white/5 overflow-hidden z-[60]"
-                >
-                  {suggestionsLoading ? (
-                    <div className="flex items-center justify-center py-4">
-                      <Loader2 className="w-4 h-4 animate-spin text-primary" />
-                    </div>
-                  ) : (
-                    suggestions.map((item: any) => (
-                      <button
-                        key={item.mal_id || item.id}
-                        onClick={() => handleSuggestionClick(item)}
-                        className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-white/5 transition-colors text-left"
-                      >
-                        <img
-                          src={isMovieMode ? tmdbApi.getImageUrl(item.poster_path, 'w500') : item.images?.webp?.image_url}
-                          alt=""
-                          className="w-8 h-11 rounded object-cover bg-white/5 shrink-0"
-                        />
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium truncate">{item.title_english || item.title || item.name}</p>
-                          <p className="text-[10px] text-text-secondary">
-                            {isMovieMode
-                              ? (item.media_type === 'tv' ? 'TV' : 'Movie')
-                              : (item.type || 'Anime')
-                            }
-                          </p>
-                        </div>
-                      </button>
-                    ))
-                  )}
-                </motion.div>
-              )}
-            </AnimatePresence>
           </div>
 
           <div className="flex bg-white/5 rounded-full border border-white/5 p-0.5 shrink-0">
