@@ -201,6 +201,7 @@ export default function Watch() {
         duration,
         updatedAt: serverTimestamp()
       }, { merge: true });
+      setWatchedEpisodes(prev => new Set(prev).add(currentEp));
     } catch (err) {
       console.warn('Failed to save progress:', err);
     }
@@ -430,7 +431,7 @@ export default function Watch() {
     setSkipTimes(null);
     hasResumed.current = false; // Reset restore flag on episode/anime change
 
-    fetch(`https://api.aniskip.com/v1/skip-times/${anime.mal_id}/${epNumber}?types=op&types=ed`)
+    fetch(`https://api.aniskip.com/v2/skip-times/${anime.mal_id}/${epNumber}?types[]=op&types[]=ed&episode_length=0`)
       .then(res => res.json())
       .then(data => {
         if (!data.found) return;
