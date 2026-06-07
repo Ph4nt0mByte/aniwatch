@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { jikanApi } from '../services/api';
 import { getEmbedUrls } from '../services/anikoto';
 import { Anime, Episode } from '../types';
-import { Play, List, Settings, Info, Volume2, Maximize, Bookmark, SkipBack, SkipForward, Sun, ChevronDown, ChevronRight, Search, Loader2 } from 'lucide-react';
+import { Play, List, Settings, Info, Volume2, Maximize, Bookmark, SkipBack, SkipForward, Sun, ChevronDown, ChevronRight, Search, Loader2, RotateCw } from 'lucide-react';
 import { db } from '../lib/firebase';
 import { doc, setDoc, getDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
@@ -41,6 +41,7 @@ export default function Watch() {
   const hasResumed = useRef(false);
   const [aniSkipToast, setAniSkipToast] = useState<string | null>(null);
   const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     document.body.style.overflow = lightMode ? 'hidden' : '';
@@ -672,7 +673,7 @@ export default function Watch() {
                 {!streamLoading && !streamError && embedUrls && embedUrls[streamMode] && (
                   <iframe
                     ref={iframeRef}
-                    key={embedUrls[streamMode]}
+                    key={`${embedUrls[streamMode]}-${refreshKey}`}
                     src={embedUrls[streamMode]}
                     className="w-full h-full"
                     allowFullScreen
@@ -740,8 +741,11 @@ export default function Watch() {
               </div>
 
               <div className="flex items-center gap-4">
-                <button className="flex items-center gap-1 hover:text-white transition-colors cursor-pointer">
-                  <Info className="w-3.5 h-3.5" /> Report
+                <button 
+                  onClick={() => setRefreshKey(prev => prev + 1)}
+                  className="flex items-center gap-1 hover:text-white transition-colors cursor-pointer"
+                >
+                  <RotateCw className="w-3.5 h-3.5" /> Refresh
                 </button>
                 <button 
                   onClick={toggleWatchlist}
