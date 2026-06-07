@@ -3,7 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { jikanApi } from '../services/api';
 import { getEmbedUrls } from '../services/anikoto';
 import { Anime, Episode } from '../types';
-import { Play, List, Settings, Info, Volume2, Maximize, Bookmark, SkipBack, SkipForward, Sun, ChevronDown, ChevronRight, Search, Loader2, RotateCw } from 'lucide-react';
+import { Play, List, Settings, Info, Volume2, Maximize, Bookmark, SkipBack, SkipForward, Sun, ChevronDown, ChevronRight, Search, Loader2, RotateCw, X } from 'lucide-react';
 import { db } from '../lib/firebase';
 import { doc, setDoc, getDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
 import { useAuth } from '../contexts/AuthContext';
@@ -40,7 +40,6 @@ export default function Watch() {
   const skipTriggered = useRef<{ op: boolean; ed: boolean }>({ op: false, ed: false });
   const hasResumed = useRef(false);
   const [aniSkipToast, setAniSkipToast] = useState<string | null>(null);
-  const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
@@ -421,8 +420,6 @@ export default function Watch() {
     ]).then(([result, skipData]) => {
       if (cancelled) return;
 
-      if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
-
       // Process skip times
       if (skipData?.found) {
         const times: { op?: { start: number; end: number }; ed?: { start: number; end: number } } = {};
@@ -451,10 +448,6 @@ export default function Watch() {
         setAniSkipToast('AniSkip: No skip times found');
       }
 
-      toastTimeoutRef.current = setTimeout(() => {
-        setAniSkipToast(null);
-      }, 5000);
-
       // Process embed URLs
       if (result && (result.sub || result.dub)) {
         const progressKey = `playback-${id}-${epNumber}`;
@@ -477,12 +470,7 @@ export default function Watch() {
       setStreamLoading(false);
     }).catch(() => {
       if (!cancelled) {
-        if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
         setAniSkipToast('AniSkip: API request failed');
-        toastTimeoutRef.current = setTimeout(() => {
-          setAniSkipToast(null);
-        }, 5000);
-
         setStreamError('Failed to load stream. Please try again later.');
         setStreamLoading(false);
       }
@@ -490,7 +478,6 @@ export default function Watch() {
 
     return () => {
       cancelled = true;
-      if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
     };
   }, [anime?.mal_id, epNumber]);
 
@@ -530,9 +517,17 @@ export default function Watch() {
   return (
     <>
     {aniSkipToast && (
-      <div className="fixed top-6 right-6 z-[100] bg-black/90 backdrop-blur-md border border-white/10 text-white text-xs font-black px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3">
-        <span className="w-1.5 h-1.5 bg-primary rounded-full animate-pulse shadow-[0_0_10px_rgba(255,221,149,0.5)]" />
-        <span>{aniSkipToast}</span>
+      <div className="fixed top-6 right-6 z-[100] bg-black/95 border-2 border-white/10 text-white text-sm font-black px-5 py-4 rounded-2xl shadow-2xl flex items-center justify-between gap-4 max-w-md animate-fade-in-down">
+        <div className="flex items-center gap-3">
+          <span className="w-2.5 h-2.5 bg-primary rounded-full animate-pulse shadow-[0_0_10px_rgba(255,221,149,0.5)]" />
+          <span>{aniSkipToast}</span>
+        </div>
+        <button 
+          onClick={() => setAniSkipToast(null)} 
+          className="text-gray-400 hover:text-white transition-colors p-1 rounded-lg hover:bg-white/10 cursor-pointer"
+        >
+          <X className="w-4 h-4" />
+        </button>
       </div>
     )}
     {/* Light Mode Backdrop */}
