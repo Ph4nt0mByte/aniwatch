@@ -39,6 +39,8 @@ export default function Watch() {
   } | null>(null);
   const skipTriggered = useRef<{ op: boolean; ed: boolean }>({ op: false, ed: false });
   const hasResumed = useRef(false);
+  const [aniSkipToast, setAniSkipToast] = useState<string | null>(null);
+  const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     document.body.style.overflow = lightMode ? 'hidden' : '';
@@ -418,6 +420,8 @@ export default function Watch() {
     ]).then(([result, skipData]) => {
       if (cancelled) return;
 
+      if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+
       // Process skip times
       if (skipData?.found) {
         const times: { op?: { start: number; end: number }; ed?: { start: number; end: number } } = {};
@@ -437,7 +441,18 @@ export default function Watch() {
           } catch {}
         }
         setSkipTimes(times);
+
+        const opStr = times.op ? `OP (${Math.round(times.op.start)}s-${Math.round(times.op.end)}s)` : '';
+        const edStr = times.ed ? `ED (${Math.round(times.ed.start)}s-${Math.round(times.ed.end)}s)` : '';
+        const skipInfo = [opStr, edStr].filter(Boolean).join(', ') || 'None';
+        setAniSkipToast(`AniSkip: Found ${skipInfo}`);
+      } else {
+        setAniSkipToast('AniSkip: No skip times found');
       }
+
+      toastTimeoutRef.current = setTimeout(() => {
+        setAniSkipToast(null);
+      }, 5000);
 
       // Process embed URLs
       if (result && (result.sub || result.dub)) {
@@ -461,12 +476,21 @@ export default function Watch() {
       setStreamLoading(false);
     }).catch(() => {
       if (!cancelled) {
+        if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+        setAniSkipToast('AniSkip: API request failed');
+        toastTimeoutRef.current = setTimeout(() => {
+          setAniSkipToast(null);
+        }, 5000);
+
         setStreamError('Failed to load stream. Please try again later.');
         setStreamLoading(false);
       }
     });
 
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    };
   }, [anime?.mal_id, epNumber]);
 
   const playerContainerRef = useRef<HTMLDivElement>(null);
@@ -504,6 +528,12 @@ export default function Watch() {
 
   return (
     <>
+    {aniSkipToast && (
+      <div className="fixed top-6 right-6 z-[100] bg-black/90 backdrop-blur-md border border-white/10 text-white text-xs font-black px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3">
+        <span className="w-1.5 h-1.5 bg-primary rounded-full animate-pulse shadow-[0_0_10px_rgba(255,221,149,0.5)]" />
+        <span>{aniSkipToast}</span>
+      </div>
+    )}
     {/* Light Mode Backdrop */}
     {lightMode && (
       <div
