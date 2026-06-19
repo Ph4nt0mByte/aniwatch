@@ -41,6 +41,10 @@ export interface TMDBDetails {
   episode_run_time?: number[];
   number_of_seasons?: number;
   number_of_episodes?: number;
+  imdb_id?: string;
+  external_ids?: {
+    imdb_id?: string;
+  };
   seasons?: {
     id: number;
     name: string;
@@ -103,7 +107,7 @@ export const tmdbApi = {
   },
 
   getDetails: async (id: string | number, type: 'movie' | 'tv'): Promise<TMDBDetails> => {
-    const res = await tmdbFetch(`${TMDB_BASE_URL}/${type}/${id}?append_to_response=credits,recommendations&language=en-US`);
+    const res = await tmdbFetch(`${TMDB_BASE_URL}/${type}/${id}?append_to_response=credits,recommendations,external_ids&language=en-US`);
     const data = await res.json();
     return { ...data, media_type: type };
   },

@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { loginWithEmail, registerWithEmail, signInWithGoogle } from '../lib/firebase';
-import { Chrome, User, Lock, Eye, EyeOff, Loader2 } from 'lucide-react';
+import { loginWithEmail, registerWithEmail } from '../lib/firebase';
+import { User, Lock, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { motion } from 'motion/react';
 
 export default function Auth() {
@@ -118,24 +118,7 @@ export default function Auth() {
           </button>
         </form>
 
-        <div className="relative my-6">
-          <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-white/5"></div>
-          </div>
-          <div className="relative flex justify-center text-xs uppercase">
-            <span className="bg-[#1a1b1e] px-2 text-gray-500">or</span>
-          </div>
-        </div>
 
-        <button
-          onClick={() => {
-            setError(null);
-            signInWithGoogle().catch((err: any) => setError(err?.message || 'Google login failed'));
-          }}
-          className="w-full flex items-center justify-center gap-3 bg-white/5 hover:bg-white/10 border border-white/10 text-white py-3 rounded-lg font-medium text-sm transition-all"
-        >
-          <Chrome className="w-5 h-5" /> Continue with Google
-        </button>
 
         <div className="mt-6 text-center">
           <button

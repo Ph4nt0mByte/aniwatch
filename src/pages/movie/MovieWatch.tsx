@@ -25,6 +25,7 @@ export default function MovieWatch() {
   const playerContainerRef = useRef<HTMLDivElement>(null);
 
   const servers = [
+    { name: 'VidSrc.to', getUrl: (id: string) => isMovie ? `https://vidsrc.to/embed/movie/${id}` : `https://vidsrc.to/embed/tv/${id}/${currentSeason}/${currentEpisode}` },
     { name: 'VidSrc.me', getUrl: (id: string) => isMovie ? `https://vidsrcme.ru/embed/movie/${id}` : `https://vidsrcme.ru/embed/tv/${id}/${currentSeason}/${currentEpisode}` },
     { name: 'SuperEmbed', getUrl: (id: string) => isMovie ? `https://multiembed.mov/?video_id=${id}&tmdb=1` : `https://multiembed.mov/?video_id=${id}&tmdb=1&s=${currentSeason}&e=${currentEpisode}` },
   ];
@@ -44,7 +45,9 @@ export default function MovieWatch() {
     }
   };
 
-  const embedUrl = id ? servers[server].getUrl(id) : '';
+  const imdbId = details?.external_ids?.imdb_id || details?.imdb_id;
+  const streamId = imdbId || id;
+  const embedUrl = streamId ? servers[server].getUrl(streamId) : '';
 
   useEffect(() => {
     if (!id) return;
